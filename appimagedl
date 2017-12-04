@@ -581,9 +581,34 @@ function appimagedlconfig() {
     fi
 }
 
-# TODO HELP FUNCTION
 function appimagedlhelp() {
-    echo "todo help function"
+printf '%s\n' "appimagedl 0.0.1
+Usage: appimagedl [option] [AppImage]
+appimagedl is a command line AppImage manager that integrates with AppImageHub.
+appimagedl uses https://appimage.github.io/feed.json to get information about
+approved AppImages from AppImageHub.  If possible, 'appimageupdatetool' is used
+to keep AppImages up to date.  Otherwise, 'jq' and 'wget' are used to get the latest
+release information using Github's API.
+
+Arguments:
+    list|l      - list all available AppImages
+    info|i      - output json file containing information for an AppImage
+    download|dl - download an AppImage to $TARGET_DIR
+    *get        - download an AppImage to $GET_DIR without managing it
+    remove|rm   - remove a downloaded AppImage
+    update|up   - update list of AppImages and check downloaded AppImages for updates
+    *revert|rev - revert an updated AppImage to its previous version if available
+    *man|m      - show appimagedl man page
+Additional Aguments:
+    [list|info] --downloaded|-d   - show list or info for downloaded AppImages
+    --verbose [option] [AppImage] - add bash option 'set -v' for verbose output
+    --debug [option] [AppImage]   - add bash option 'set -x' for debugging
+
+* = NOT YET IMPLEMENTED
+See https://github.com/simoniz0r/appimagedl for more help or to report issues.
+appimagedl is not responsible for bugs within AppImages that have been
+downloaded using appimagedl.  Please report any bugs that are specific to
+downloaded AppImages to their maintainers."
 }
 
 # Setup a trap to detect if appimagedl has been killed or if keyboard interrupt has been sent
