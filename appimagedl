@@ -35,6 +35,11 @@ function detectinterrupt() {
     cleanup "1"
 }
 
+function trywithoutsudo() {
+    COMMAND="$@"
+    $COMMAND 2> /dev/null || sudo $COMMAND || { ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$COMMAND failed to execute!"; cleanup "1"; }
+}
+
 # Function to save config settings for appimagedl
 # CONFIG_DIR can be changed, but should only be changed when no AppImages are being tracked by appimagedl
 # TARGET_DIR can also be changed, but the above also applies here
@@ -275,21 +280,13 @@ function downloadappimage() {
     esac
     wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { ssft_display_error "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl${CLR_CLEAR}"; cleanup "1"; }
     chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
-    case $TARGET_DIR in
-        /home/*|$HOME*)
-            mv "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
-            ;;
-        *)
-            sudo mv "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
-            ;;
-    esac
+    trywithoutsudo "mv $CONFIG_DIR/cache/$APPIMAGE.AppImage $TARGET_DIR/$APPIMAGE"
     saveappimageinfo "$APPIMAGE"
     echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR} has been downloaded to $TARGET_DIR/$APPIMAGE"
 }
 
 # Function to remove downloaded AppImages
 # First checks to make sure user inputted AppImage is being tracked by appimagedl
-# Then checks TARGET_DIR to see if sudo should be used
 # Finally, CONFIG_DIR/upgrades is checked to see if AppImage was marked for upgrade and removes file there if it exists
 function removeappimage() {
     APPIMAGE="$1"
@@ -308,14 +305,7 @@ function removeappimage() {
         rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
     fi
     echo "Removing $TARGET_DIR/$APPIMAGE ..."
-    case $TARGET_DIR in
-        /home/*|$HOME*)
-            rm "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
-            ;;
-        *)
-        sudo rm "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
-        ;;
-    esac
+    trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
     rm "$CONFIG_DIR"/downloaded/"$APPIMAGE"
     echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR} has been removed!"
 }
@@ -391,16 +381,8 @@ function runupdate() {
         if [ "$ZSYNC_UPDATE" = "FALSE" ]; then
             wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { ssft_display_error "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl"; cleanup "1"; }
             chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
-            case $TARGET_DIR in
-                /home/*|$HOME*)
-                    rm "$TARGET_DIR"/"$APPIMAGE"
-                    mv "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
-                    ;;
-                *)
-                    sudo rm "$TARGET_DIR"/"$APPIMAGE"
-                    sudo mv "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
-                    ;;
-            esac
+            trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
+            trywithoutsudo "mv $CONFIG_DIR/cache/$APPIMAGE.AppImage $TARGET_DIR/$APPIMAGE"
             echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
             saveappimageinfo "$APPIMAGE"
             rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
