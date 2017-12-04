@@ -35,9 +35,11 @@ function detectinterrupt() {
     cleanup "1"
 }
 
+# Function to try command passed to it without sudo first, then as sudo if previous attempt fails
+# Will output error with command that was passed if both attempts fail
 function trywithoutsudo() {
     COMMAND="$@"
-    $COMMAND 2> /dev/null || sudo $COMMAND || { ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$COMMAND failed to execute!"; cleanup "1"; }
+    $COMMAND 2> /dev/null || sudo $COMMAND || { ssft_display_error "${CLR_RED}The following failed to execute:${CLR_CLEAR}" "$COMMAND"; cleanup "1"; }
 }
 
 # Function to save config settings for appimagedl
