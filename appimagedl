@@ -1,0 +1,776 @@
+#!/bin/bash -e
+# Title: appimagedl
+# Description: Easily download AppImages and keep them up to date.
+# Description: Uses https://appimage.github.io/feed.json to get information about available AppImages.
+# Author: simonizor (simoniz0r)
+# License: MIT
+# Dependencies: appimageupdatetool, jq, wget
+
+# Set arguments as variables for easier management
+ARG="$1"
+APPIMAGE_INPUT="$2"
+# Set default variables to be stored in config file on first run
+CONFIG_DIR="$HOME/.config/appimagedl"
+TARGET_DIR="/usr/local/bin"
+GET_DIR="$HOME/AppImages"
+CLR_CLEAR="$(tput sgr0)"
+CLR_BLUE="$(tput setaf 4)"
+CLR_LGREEN="$(tput setaf 10)"
+CLR_GREEN="$(tput setaf 2)"
+CLR_LCYAN="$(tput setaf 14)"
+CLR_CYAN="$(tput setaf 6)"
+CLR_RED="$(tput setaf 1)"
+# Find directory script is running from
+REALPATH="$(readlink -f $0)"
+RUNNING_DIR="$(dirname "$REALPATH")"
+
+# Function that is used to clean up CONFIG_DIR/cache every time appimagedl exits and exit with exit status sent to it
+function cleanup() {
+    rm -rf "$CONFIG_DIR"/cache/*
+    printf '\e[?25h' # Show cursor in case we exit while it's hidden
+    exit $1
+}
+
+# Function that trap below is routed to to output error about keyboard interrupt and cleanup CONFIG_DIR/cache
+function detectinterrupt() {
+    echo
+    ssft_display_error "${CLR_RED}Interrupt Detected${CLR_CLEAR}" "Interrupt has been detected; cleaning up and exiting..."
+    cleanup "1"
+}
+
+# Function to save config settings for appimagedl
+# CONFIG_DIR can be changed, but should only be changed when no AppImages are being tracked by appimagedl
+# TARGET_DIR can also be changed, but the above also applies here
+# GET_DIR can be changed at any time as AppImages downloaded to this dir are not tracked at all by appimagedl
+# GITHUB_TOKEN is blank by default and is provided for frequent users of appimagedl who are hitting Github's rate limit (60/hour) without it
+# When using GITHUB_TOKEN, Github's rate limit is increased to 5000/hour which should be plenty for anyone
+# CLR_* can be used to change appimagedl's color output just in case you hate it :)
+function saveconf() {
+    echo "# Please only edit this config file if you have read appimagedl's man page." > "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# CONFIG_DIR - Directory where config files and AppImage information files will be stored." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# Also used for temporary caching of AppImages before moved to TARGET_DIR." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# Changing this directory will cause appimagedl to lose track of already downloaded AppImages!" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CONFIG_DIR="\"$CONFIG_DIR\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# TARGET_DIR - Directory where AppImages will be downloaded to." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# /usr/local/bin is used by default so that downloaded AppImages"  >> "$CONFIG_DIR"/appimagedl.conf
+    echo "## can be launched in your terminal without editing PATH." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# If you do no wish to use 'sudo' when downloading AppImages,"  >> "$CONFIG_DIR"/appimagedl.conf
+    echo "## you may change this to to a directory in $HOME." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# Only change this directory if you have no AppImages being managed by appimage!" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "TARGET_DIR="\"$TARGET_DIR\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# GET_DIR - Directory where AppImages will be downloaded to when using 'get' argument." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# AppImages downloaded to this directory will not be tracked by appimagedl, so it is safe to change." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "GET_DIR="\"$GET_DIR\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# GITHUB_TOKEN - Token used to authenticate with Github's API to increase the rate limit." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# This field can be left blank if you are not having issues hitting the rate limit." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# If you insert your token, it must be valid and should have access to NO scopes." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# Your token will be stored in plain text, so it is advised to use throw-away account for this." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "GITHUB_TOKEN="\"$GITHUB_TOKEN\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# CLR_* - Colors used in appimagedl's CLI output." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# You can change these to any color that your terminal supports using either tput or by using escape codes." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# Inserting invalid color codes will more than likely cause errors, so be careful." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_BLUE="\"${CLR_BLUE}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_LGREEN="\"${CLR_LGREEN}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_GREEN="\"${CLR_GREEN}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_LCYAN="\"${CLR_LCYAN}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_CYAN="\"${CLR_CYAN}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_RED="\"${CLR_RED}\""" >> "$CONFIG_DIR"/appimagedl.conf
+}
+
+# Function that checks github rate limit by using wget on https://api.github.com/rate_limit
+# Uses GITHUB_TOKEN if user has added it to CONFIG_DIR/appimagedl.conf; rate limit is extended to 5000/hour when using it
+# Without GITHUB_TOKEN, rate limit is 60/hour.
+# If rate limit reaches 0, error message is outputted and user is told when it resets
+function ratelimitcheck() {
+    if [ -z "$GITHUB_TOKEN" ]; then
+        wget -S --spider "https://api.github.com/rate_limit" -o "$CONFIG_DIR"/cache/rate.limit
+        echo "Github API rate limit: $(grep -m 1 '.*X-RateLimit-Remaining:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")/60 until $(date -d@$(grep -m 1 '.*X-RateLimit-Reset:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ") +"%T, %F")."  || { echo "Github rate limit check failed; exiting..."; cleanup "1"; }
+    else
+        wget -S --spider --quiet --auth-no-challenge --header="Authorization: token "$GITHUB_TOKEN"" "https://api.github.com/rate_limit" -o "$CONFIG_DIR"/cache/rate.limit  || { echo "Github rate limit check failed; exiting..."; cleanup "1"; }
+        echo "Github API rate limit : $(grep -m 1 '.*X-RateLimit-Remaining:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")/5000 until $(date -d@$(grep -m 1 '.*X-RateLimit-Reset:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ") +"%T, %F")."
+    fi
+    if [ "$(grep -m 1 '.*X-RateLimit-Remaining:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")" = "0" ]; then
+        ssft_display_error "${CLR_RED}Github API rate limit reached! Try again at $(date -d@$(grep -m 1 '.*X-RateLimit-Reset:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")).${CLR_CLEAR}" "If you haven't already, you can add your token to $CONFIG_DIR/appimagedl.conf to avoid hitting the rate limit."
+        cleanup "1"
+    fi
+    echo
+}
+
+# Function that saves AppImage info for downloaded AppImages in CONFIG_DIR/downloaded
+# CONFIG_DIR/downloaded is the main directory that appimagedl uses to keep track of downloaded AppImages for updating and removal
+function saveappimageinfo() {
+    APPIMAGE="$1"
+    if [ -z "$APPIMAGE_UPDATE_STATUS" ]; then
+        APPIMAGE_UPDATE_STATUS="CLEAR"
+    fi
+    echo "APPIMAGE_VERSION="\"$NEW_APPIMAGE_VERSION\""" > "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+    echo "APPIMAGE_STORED_SIZE="\"$APPIMAGE_SIZE\""" >> "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+    echo "APPIMAGE_STORED_TAG="\"$APPIMAGE_TAG\""" >> "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+    echo "APPIMAGE_UPDATE_STATUS="\"$APPIMAGE_UPDATE_STATUS\""" >> "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+}
+
+# Function that uses jq to parse the json files that are generated by the updatelist function
+function parsestoredinfo() {
+    APPIMAGE="$1"
+    APPIMAGE_NAME="$(jq -r '.name' "$CONFIG_DIR"/list/"$APPIMAGE".json)"
+    APPIMAGE_DESCRIPTION="$(jq -r '.description' "$CONFIG_DIR"/list/"$APPIMAGE".json)"
+    APPIMAGE_AUTHOR="$(jq -r '.authors[0].name' "$CONFIG_DIR"/list/"$APPIMAGE".json)"
+    APPIMAGE_AUTHOR_URL="$(jq -r '.authors[0].url' "$CONFIG_DIR"/list/"$APPIMAGE".json)"
+    APPIMAGE_DL_URL="$(jq -r '.links[1].url' "$CONFIG_DIR"/list/"$APPIMAGE".json)"
+    APPIMAGE_API_URL="$(jq -r '.links[0].url' "$CONFIG_DIR"/list/"$APPIMAGE".json)"
+    APPIMAGE_API_URL="https://api.github.com/repos/$APPIMAGE_API_URL/releases"
+}
+
+# Function that lists all AppImages in CONFIG_DIR/list and uses pr to put into columns
+function listavailable() {
+    for file in $(dir -C -w 1 "$CONFIG_DIR"/list); do
+        APPIMAGE="$(echo "$file" | sed 's%.json%%g')"
+        echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR}"
+    done | pr -tTaw $(tput cols) -$(($(tput cols)/45))
+    echo
+    echo "${CLR_BLUE}$(dir -C -w 1 "$CONFIG_DIR"/list | wc -l) AppImages available for download."
+}
+
+# Function that lists all AppImages in CONFIG_DIR/downloaded and uses pr to put into columns
+function listdownloaded() {
+    for file in $(dir -C -w 1 "$CONFIG_DIR"/downloaded); do
+        echo "${CLR_GREEN}$file${CLR_CLEAR}"
+    done | pr -tTaw $(tput cols) -$(($(tput cols)/45))
+    echo
+    echo "${CLR_BLUE}$(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) downloaded AppImage(s)"
+}
+
+# Function that uses jq to show the json file for any AppImage in CONFIG_DIR/list
+function showinfo() {
+    APPIMAGE="$1"
+    if [ -f "$CONFIG_DIR/list/$APPIMAGE.json" ]; then
+        jq '.' "$CONFIG_DIR"/list/"$APPIMAGE".json
+    else
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$APPIMAGE not found!"
+    fi
+}
+
+# Function that uses jq to show the json file for each AppImage in CONFIG_DIR/downloaded
+function showinfodownloaded() {
+    for file in $(dir -C -w 1 "$CONFIG_DIR"/downloaded); do
+        echo "${CLR_GREEN}$file${CLR_CLEAR}:"
+        jq '.' "$CONFIG_DIR"/list/"$file".json
+    done
+    echo
+    echo "${CLR_BLUE}$(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) downloaded AppImage(s)"
+}
+
+# Function that uses wget and jq to get the latest release info for AppImage
+# If user has stored their GITHUB_TOKEN in CONFIG_DIR/appimagedl.conf, it is used to extend rate limit to 5000/hour
+# The .AppImage or .appimage extension is used in 2 of the 4 checks to make sure we only download AppImages
+# The AppImage name is used in 2 of the 4 checks to try and make sure the correct AppImage is always found
+# We also try to find only 64bit AppImages by making sure the AppImage name does not contain 32bit related things
+# Each check gets less specific until we hopefully find an AppImage on the Github release page
+# If no AppImage is found, an error is outputted to the user
+# We also get some useful info for the users here such as the AppImage size and number of downloads
+function githubrelease () {
+    APPIMAGE="$1"
+    if [ -z "$GITHUB_TOKEN" ]; then
+        wget --quiet "$APPIMAGE_API_URL" -O "$CONFIG_DIR"/cache/"$APPIMAGE"full || { ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "wget $APPIMAGE_API_URL failed!"; cleanup "1"; }
+    else
+        wget --quiet --auth-no-challenge --header="Authorization: token "$GITHUB_TOKEN"" "$APPIMAGE_API_URL" -O "$CONFIG_DIR"/cache/"$APPIMAGE"full || { ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "wget failed!"; cleanup "1"; }
+    fi
+    cd "$CONFIG_DIR"/cache
+    JQARG=".[].assets[] | select(.name | contains(\".AppImage\"), contains(\".appimage\")) | select(.name | contains(\"$APPIMAGE_NAME\")) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
+    cat "$CONFIG_DIR"/cache/"$APPIMAGE"full | jq --raw-output "$JQARG" | csplit --digits=2 --quiet --prefix="$APPIMAGE" --suffix-format=%02d.json - "/^{/" "{*}"
+    if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
+        rm -f "$CONFIG_DIR"/cache/"$APPIMAGE"00.json
+        JQARG=".[].assets[] | select(.name | contains(\".AppImage\"), contains(\".appimage\")) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
+        cat "$CONFIG_DIR"/cache/"$APPIMAGE"full | jq --raw-output "$JQARG" | csplit --digits=2 --quiet --prefix="$APPIMAGE" --suffix-format=%02d.json - "/^{/" "{*}"
+    fi
+    if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
+        rm -f "$CONFIG_DIR"/cache/"$APPIMAGE"00.json
+        JQARG=".[].assets[] | select(.name | contains(\"$APPIMAGE_NAME\")) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
+        cat "$CONFIG_DIR"/cache/"$APPIMAGE"full | jq --raw-output "$JQARG" | csplit --digits=2 --quiet --prefix="$APPIMAGE" --suffix-format=%02d.json - "/^{/" "{*}"
+    fi
+    if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
+        rm -f "$CONFIG_DIR"/cache/"$APPIMAGE"00.json
+        JQARG=".[].assets[] | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
+        cat "$CONFIG_DIR"/cache/"$APPIMAGE"full | jq --raw-output "$JQARG" | csplit --digits=2 --quiet --prefix="$APPIMAGE" --suffix-format=%02d.json - "/^{/" "{*}"
+    fi
+    if [ -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
+        APPIMAGE_NAME="$(jq -r '.name' "$CONFIG_DIR"/cache/"$APPIMAGE"01.json)"
+        NEW_APPIMAGE_VERSION="$(jq -r '.updated' "$CONFIG_DIR"/cache/"$APPIMAGE"01.json)"
+        APPIMAGE_LATEST_URL="$(jq -r '.url' "$CONFIG_DIR"/cache/"$APPIMAGE"01.json)"
+        APPIMAGE_SIZE="$(jq -r '.size' "$CONFIG_DIR"/cache/"$APPIMAGE"01.json)"
+        APPIMAGE_SIZE="$(awk "BEGIN {print ("$APPIMAGE_SIZE"/1024)/1024}" | cut -c-5) MBs"
+        APPIMAGE_DOWNLOADS="$(jq -r '.numdls' "$CONFIG_DIR"/cache/"$APPIMAGE"01.json)"
+        APPIMAGE_TAG="$(echo "$APPIMAGE_LATEST_URL" | cut -f8 -d"/")"
+    else
+        APPIMAGE_NAME="Error finding $APPIMAGE!"
+        NEW_APPIMAGE_VERSION="Error finding $APPIMAGE!"
+        APPIMAGE_LATEST_URL="Error finding $APPIMAGE!"
+        APPIMAGE_SIZE="Error finding $APPIMAGE!"
+        APPIMAGE_DOWNLOADS="Error finding $APPIMAGE!"
+        APPIMAGE_TAG="Error finding $APPIMAGE!"
+    fi
+}
+
+# Function to check to make sure AppImage exists in CONFIG_DIR/list and is not already managed by appimagedl
+# If the TARGET_DIR is not in the user's home directory, type is used to check if a command by same name as AppImage exists
+# Lastly, TARGET_DIR/APPIMAGE is checked to make sure AppImage does not exist in case all other checks did not find it
+function downloadchecks() {
+    APPIMAGE="$1"
+    if [ ! -f "$CONFIG_DIR/list/$APPIMAGE.json" ]; then
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$APPIMAGE not found!"
+        cleanup "1"
+    fi
+    if [ -f "$CONFIG_DIR"/downloaded/"$APPIMAGE" ]; then
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$APPIMAGE is already downloaded. Use 'appimagedl update' to check for a new version of $APPIMAGE."
+        cleanup "1"
+    fi
+    case $TARGET_DIR in
+        /home/*|$HOME*)
+            sleep 0
+            ;;
+        *)
+            if type >/dev/null 2>&1 "$APPIMAGE" && [ "$APPIMAGE" != "appimagedl" ]; then
+                ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$APPIMAGE is already installed on your system and not managed by appimagedl; exiting..."
+                cleanup "1"
+            fi
+            ;;
+    esac
+    if [ -f "$TARGET_DIR/$APPIMAGE" ]; then
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$TARGET_DIR/$APPIMAGE exists; exiting..."
+        cleanup "1"
+    fi
+}
+
+# Function to download AppImages to TARGET_DIR
+# parsestoredinfo function is used to read info needed from stored json files in CONFIG_DIR/list
+# githubrelease function is used to get the latest release URL, version, and release date for the AppImage
+# AppImage is downloaded to CONFIG_DIR/cache and then moved to TARGET_DIR
+# saveappimageinfo function is used to save version, size, tag, and update status for future use
+function downloadappimage() {
+    APPIMAGE="$1"
+    parsestoredinfo "$APPIMAGE"
+    githubrelease "$APPIMAGE"
+    if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "Could not find download for $APPIMAGE from $APPIMAGE_DL_URL!"
+        cleanup "1"
+    fi
+    ssft_select_single "AppImage for ${CLR_GREEN}$APPIMAGE${CLR_CLEAR} will be downloaded and moved to $TARGET_DIR/$APPIMAGE." "Version: $APPIMAGE_TAG - Release date: $NEW_APPIMAGE_VERSION - Size: $APPIMAGE_SIZE - Downloads: $APPIMAGE_DOWNLOADS" "Download $APPIMAGE" "Exit"
+    case $SSFT_RESULT in
+        Exit)
+            ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE was not downloaded."
+            cleanup "0"
+            ;;
+    esac
+    wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { ssft_display_error "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl${CLR_CLEAR}"; cleanup "1"; }
+    chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
+    case $TARGET_DIR in
+        /home/*|$HOME*)
+            mv "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
+            ;;
+        *)
+            sudo mv "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
+            ;;
+    esac
+    saveappimageinfo "$APPIMAGE"
+    echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR} has been downloaded to $TARGET_DIR/$APPIMAGE"
+}
+
+# Function to remove downloaded AppImages
+# First checks to make sure user inputted AppImage is being tracked by appimagedl
+# Then checks TARGET_DIR to see if sudo should be used
+# Finally, CONFIG_DIR/upgrades is checked to see if AppImage was marked for upgrade and removes file there if it exists
+function removeappimage() {
+    APPIMAGE="$1"
+    if [ ! -f "$CONFIG_DIR/downloaded/$APPIMAGE" ]; then
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "AppImage not found!"
+        cleanup "1"
+    fi
+    ssft_select_single "Removing ${CLR_GREEN}$APPIMAGE${CLR_CLEAR}..." "$APPIMAGE will be removed! Continue?" "Remove $APPIMAGE" "Exit"
+    case $SSFT_RESULT in
+        Exit)
+            ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE was not removed."
+            cleanup "0"
+            ;;
+    esac
+    if [ -f "$CONFIG_DIR"/upgrades/"$APPIMAGE" ]; then
+        rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+    fi
+    echo "Removing $TARGET_DIR/$APPIMAGE ..."
+    case $TARGET_DIR in
+        /home/*|$HOME*)
+            rm "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
+            ;;
+        *)
+        sudo rm "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
+        ;;
+    esac
+    rm "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+    echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR} has been removed!"
+}
+
+# Function that uses jq and csplit to parse https://appimage.github.io/feed.json into a usable format
+# The CONFIG_DIR/list directory is first moved to the CONFIG_DIR/cache directory incase of failure
+# jq outputs feed.json in a clean form, csplit splits feed.json into separate files for each AppImage
+# Separated json files are then checked for valid links; json files without valid links are removed
+# Files are then renamed to the proper name rather than the csplit output using the name key in the json files
+# Finally, the shortened screenshot link is expanded to the full link for easier access by users
+# After the files are cleaned up so jq can parse them without errors, diff is used to check for changes
+# If the above succeeded, the stored list dir in CONFIG_DIR/cache is deleted; if not, it is moved back
+function updatelist() {
+    APPIMAGES_AVAILABLE="$(dir -C -w 1 "$CONFIG_DIR"/list)"
+    printf '\e[?25l' # Hide cursor to prevent progress bar looking glitchy
+    echo "Parsing info for AppImages from AppImageHub..."
+    echo -ne "[ $(tput setab 7) $(tput sgr0)                                         ]\r"
+    mv "$CONFIG_DIR"/list/ "$CONFIG_DIR"/cache/
+    mkdir "$CONFIG_DIR"/list
+    cd "$CONFIG_DIR"/list
+    wget -qO - "https://appimage.github.io/feed.json" | jq '.items[]' | csplit --digits=2 --quiet --prefix=appimage --suffix-format=%02d.json - "/^{/" "{*}" \
+    || { ssft_display_error "${CLR_RED}Error updating AppImage list!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/list; mv "$CONFIG_DIR"/cache/list "$CONFIG_DIR"/list; cleanup "1"; }
+    rm -rf "$CONFIG_DIR"/cache/*
+    rm -f "$CONFIG_DIR"/list/appimage00.json
+    echo -ne "[ $(tput setab 7)   $(tput sgr0)                                        ]\r"
+    for file in $(dir -C -w 1 "$CONFIG_DIR"/list); do
+        case $(jq -r '.links[0]' "$CONFIG_DIR"/list/"$file") in
+            null)
+                rm -f "$CONFIG_DIR"/list/"$file"
+                ;;
+        esac
+    done
+    echo -ne "[ $(tput setab 7)                  $(tput sgr0)                         ]\r"
+    for file in $(dir -C -w 1 "$CONFIG_DIR"/list); do
+        APPIMAGE_NAME="$(jq -r '.name' "$CONFIG_DIR"/list/"$file" | tr '[:upper:]' '[:lower:]')"
+        mv "$CONFIG_DIR"/list/"$file" "$CONFIG_DIR"/list/"$APPIMAGE_NAME.json"
+    done
+    echo -ne "[ $(tput setab 7)                                  $(tput sgr0)         ]\r"
+    rm -f "$CONFIG_DIR"/list/appimageupdatetest.json
+    for file in $(dir -C -w 1 "$CONFIG_DIR"/list); do
+        APPIMAGE_NAME="$(jq -r '.name' "$CONFIG_DIR"/list/"$file")"
+        echo -e "$(sed "s%    \"*..*/screenshot.png\"%    \"https://raw.githubusercontent.com/AppImage/appimage.github.io/master/database/$APPIMAGE_NAME/screenshot.png\"%g" "$CONFIG_DIR"/list/"$file")" > "$CONFIG_DIR"/list/"$file"
+    done
+    echo -ne "[ $(tput setab 7)                                          $(tput sgr0) ]\r"
+    sleep 0.5
+    printf '\e[?25h' # Show cursor
+    NEW_APPIMAGES_AVAILABLE="$(dir -C -w 1 "$CONFIG_DIR"/list)"
+    if [ "$NEW_APPIMAGES_AVAILABLE" != "$APPIMAGES_AVAILABLE" ]; then
+        echo -ne "${CLR_CYAN}AppImage list updated. AppImage list changes: ${CLR_CLEAR}\r"
+        echo
+        echo "$(diff -u -d --color=never <(echo "$APPIMAGES_AVAILABLE") <(echo "$NEW_APPIMAGES_AVAILABLE") | grep '^\-[[:alnum:]].*\|^+[[:alnum:]].*' | sed "s%.json%%g;s%^-%${CLR_RED}- %g;s%^+%${CLR_GREEN}+ %g")${CLR_CLEAR}"
+    else
+        echo -ne "${CLR_BLUE}AppImage list updated. No new changes.        ${CLR_CLEAR}\r"
+        echo
+    fi
+}
+
+# TODO ZSYNC UPDATES WITH APPIMAGEUPDATETOOL
+# Function that checks CONFIG_DIR/upgrades for files containing update info
+# File is checked for ZSYNC_UPDATE to see whether appimageupdatetool can be used
+# If appimageupdatetool cannot be used, the latest release URL, version, and release date are loaded from stored file
+function runupdate() {
+    ssft_select_single "${CLR_CYAN}Update the following AppImages:${CLR_CLEAR}" "$(dir "$CONFIG_DIR"/upgrades)" "Update AppImage(s)" "Exit"
+    case $SSFT_RESULT in
+        Exit)
+            ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "AppImage(s) not updated."
+            cleanup "0"
+            ;;
+    esac
+    for APPIMAGE in $(dir -C -w 1 "$CONFIG_DIR"/upgrades); do
+        echo "${CLR_CYAN}Updating $APPIMAGE...${CLR_CLEAR}"
+        . "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+        if [ "$ZSYNC_UPDATE" = "FALSE" ]; then
+            wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { ssft_display_error "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl"; cleanup "1"; }
+            chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
+            case $TARGET_DIR in
+                /home/*|$HOME*)
+                    rm "$TARGET_DIR"/"$APPIMAGE"
+                    mv "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
+                    ;;
+                *)
+                    sudo rm "$TARGET_DIR"/"$APPIMAGE"
+                    sudo mv "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$TARGET_DIR"/"$APPIMAGE" || { echo "Failed!"; cleanup "1"; }
+                    ;;
+            esac
+            echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+            saveappimageinfo "$APPIMAGE"
+            rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+        elif [ "$ZSYNC_UPDATE" = "TRUE" ]; then
+            echo "todo zsync update"
+            rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+        else
+            ssft_display_error "${CLR_RED}$APPIMAGE Update Status Unknown!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl"
+            rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+        fi
+    done
+}
+
+# Function to check if non zsync enabled AppImage has new update
+# Uses gitrelease function to check Github's API for latest updated_at time
+# Latest updated_at time is compared to stored time to see if new update has been released
+# If new update has been released, a file containing the new version's info is saved to CONFIG_DIR/upgrades
+# This file contains latest URL, version, and release date so Github API does not have to be checked again for runupdate function
+function githubupdatecheck() {
+    APPIMAGE="$1"
+    . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+    githubrelease "$APPIMAGE"
+    if [ -z "$NEW_APPIMAGE_VERSION" ]; then
+        echo "${CLR_RED}Error checking version for $APPIMAGE; skipping...${CLR_CLEAR}"
+    elif [ "$NEW_APPIMAGE_VERSION" != "$APPIMAGE_VERSION" ]; then
+        echo "${CLR_GREEN}New update for $APPIMAGE! Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+        echo "APPIMAGE_LATEST_URL="\"$APPIMAGE_LATEST_URL\""" > "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+        echo "APPIMAGE_TAG="\"$APPIMAGE_TAG\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+        echo "NEW_APPIMAGE_VERSION="\"$NEW_APPIMAGE_VERSION\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+        echo "ZSYNC_UPDATE="\"FALSE\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+    fi
+}
+
+# TODO ZSYNCUPDATECHECK FUNCTION
+# Function to check if zsync enabled AppImage has new update
+# Uses 'appimageupdatetool -j' to check update status
+# Creates a file in CONFIG_DIR/upgrades if new update is available
+function zsyncupdatecheck() {
+    APPIMAGE="$1"
+    # ZSYNC_UPDATE_STATUS="$(appimageupdatetool -j "$TARGET_DIR"/"$APPIMAGE")"
+    echo "todo zsync"
+}
+
+# Function to check if AppImage can be updated using appimageupdatetool
+# Uses 'appimageupdatetool -d' to check if valid information for updating exists in AppImage
+# If information does not exist, update check will happen using Github's API
+function updatecheck() {
+    APPIMAGE="$1"
+    ZSYNC_UPDATE="$(appimageupdatetool -d "$TARGET_DIR"/"$APPIMAGE" 2> /dev/null | grep -m1 'Update information type:' | cut -f2 -d':')"
+    if [ -f "$CONFIG_DIR/list/$APPIMAGE.json" ]; then
+        parsestoredinfo "$APPIMAGE"
+        case $ZSYNC_UPDATE in
+            *Invalid*)
+                githubupdatecheck "$APPIMAGE"
+                ;;
+            *)
+                zsyncupdatecheck "$APPIMAGE"
+                ;;
+        esac
+    else
+        echo "${CLR_RED}$APPIMAGE not found in list; skipping update check...${CLR_CLEAR}"
+    fi
+}
+
+# Function to start checking of updates for AppImages
+# Starts off by checking if AppImage is FROZEN and routes CLEAR AppImages to be checked for updates
+# If user does not input specific AppImage to check for update, a for loop is ran on CONFIG_DIR/downloaded and each downloaded AppImage is checked
+function updatestart() {
+    APPIMAGE="$1"
+    if [ -z "$APPIMAGE" ]; then
+        if [ $(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) -gt 0 ]; then
+            echo "Checking all downloaded AppImages for updates..."
+            for appimage in $(dir -C -w 1 "$CONFIG_DIR"/downloaded); do
+                . "$CONFIG_DIR"/downloaded/"$appimage"
+                case $APPIMAGE_UPDATE_STATUS in
+                    FROZEN)
+                        echo "${CLR_BLUE}$appimage has been marked as FROZEN; skipping update check...${CLR_CLEAR}"
+                        ;;
+                    *)
+                        updatecheck "$appimage"
+                        ;;
+                esac
+            done
+            if [ $(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l) -gt 0 ]; then
+                echo "${CLR_CYAN}$(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l) new AppImage update(s)!${CLR_CLEAR}"
+                echo
+                runupdate
+                echo "${CLR_GREEN}AppImage update complete!${CLR_CLEAR}"
+            else
+                echo "${CLR_BLUE}Update check finished; no new AppImage updates.${CLR_CLEAR}"
+            fi
+        fi
+    else
+        if [ ! -f "$CONFIG_DIR/downloaded/$APPIMAGE" ]; then
+            ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "AppImage not found!"
+            cleanup "1"
+        fi
+        echo "Checking $APPIMAGE for updates..."
+        . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+        case $APPIMAGE_UPDATE_STATUS in
+            FROZEN)
+                echo "${CLR_BLUE}$APPIMAGE has been marked as FROZEN; skipping update check...${CLR_CLEAR}"
+                ;;
+            *)
+                updatecheck "$APPIMAGE"
+                if [ $(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l) -gt 0 ]; then
+                    echo "${CLR_CYAN}New update for $APPIMAGE!${CLR_CLEAR}"
+                    runupdate
+                    echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+                else
+                    echo "${CLR_BLUE}Update check finished; no new update for $APPIMAGE.${CLR_CLEAR}"
+                fi
+                ;;
+        esac
+    fi
+}
+
+# TODO REVERT FUNCTION
+function revertappimage() {
+    echo "todo revert function to revert updates if cached AppImage exists and mark as FROZEN to prevent further updates until FROZEN mark is removed."
+}
+
+# Function to allow users to prevent AppImages from being upgraded
+# Simply toggles the APPIMAGE_UPDATE_STATUS variable between FROZEN and CLEAR in the config file
+# FROZEN AppImages are not checked for updates, CLEAR AppImages are checked.
+function updatestatus() {
+    APPIMAGE="$1"
+    if [ ! -f "$CONFIG_DIR/downloaded/$APPIMAGE" ]; then
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "AppImage not found!"
+        cleanup "1"
+    fi
+    . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+    case $APPIMAGE_UPDATE_STATUS in
+        FROZEN)
+            ssft_select_single "Mark ${CLR_GREEN}$APPIMAGE${CLR_CLEAR} as UNFROZEN" "$APPIMAGE is already marked as FROZEN and will be marked as UNFROZEN, allowing update checks. Continue?" "Mark $APPIMAGE as UNFROZEN" "Exit"
+            case $SSFT_RESULT in
+                Exit)
+                    ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not marked as UNFROZEN."
+                    cleanup "0"
+                    ;;
+            esac
+            APPIMAGE_UPDATE_STATUS="CLEAR"
+            saveappimageinfo "$APPIMAGE"
+            ssft_display_error "${CLR_GREEN}$APPIMAGE UNFROZEN${CLR_CLEAR}" "$APPIMAGE marked as UNFROZEN."
+            ;;
+        *)
+            ssft_select_single "Mark ${CLR_GREEN}$APPIMAGE${CLR_CLEAR} as FROZEN" "$APPIMAGE will be marked as FROZEN, preventing update checks until UNFROZEN. Continue?" "Mark $APPIMAGE as FROZEN" "Exit"
+            case $SSFT_RESULT in
+                Exit)
+                    ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not marked as FROZEN."
+                    cleanup "0"
+                    ;;
+            esac
+            APPIMAGE_UPDATE_STATUS="FROZEN"
+            saveappimageinfo "$APPIMAGE"
+            ssft_display_error "${CLR_BLUE}$APPIMAGE FROZEN${CLR_CLEAR}" "$APPIMAGE marked as FROZEN."
+            ;;
+    esac
+}
+
+# TODO GET FUNCTION
+function getappimage() {
+    echo "todo get function that lists all available AppImages from releases page for download"
+    echo "AppImages downloaded using 'get' will be downloaded to $GET_DIR and will not be tracked."
+}
+
+# TODO HELP FUNCTION
+function appimagedlhelp() {
+    echo "todo help function"
+}
+
+# Setup a trap to detect if appimagedl has been killed or if keyboard interrupt has been sent
+# Clears out CONFIG_DIR/cache if interrupt detected and exits with status 1
+trap "detectinterrupt" SIGINT SIGTERM
+
+# Prevent appimagedl from being ran as root; appimagedl will use sudo when needed
+# The script can write to areas that are owned by the user, so we don't want to be running as root all the time
+if [ "$EUID" = "0" ]; then
+    echo "Do not run appimagedl as root!"
+    exit 1
+fi
+
+# Load config file from home directory if it exists (used to change base config directory)
+# Otherwise, config file from preset config dir is loaded if it exists
+if [ -f ~/.appimagedl.conf ]; then
+    . ~/.appimagedl.conf
+elif [ -f ~/.config/appimagedl/appimagedl.conf ]; then
+    . ~/.config/appimagedl/appimagedl.conf
+fi
+
+# Source in a slightly modified version of ssft.sh (https://github.com/sto/ssft) for nice prompts and error messages
+if [ -f "$RUNNING_DIR/ssft.sh" ]; then
+    source "$RUNNING_DIR"/ssft.sh
+    SSFT_FRONTEND="text"
+else
+    echo "${CLR_RED}Missing required file $RUNNINGDIR/ssft.sh; exiting...${CLR_CLEAR}"
+    cleanup "1"
+fi
+
+# Create a lock file in CONFIG_DIR/cache if it does not exist on run to prevent multiple instances
+# If lock file does exist, user is prompted to make sure appimagedl is not running
+if [ ! -f "$CONFIG_DIR"/cache/appimagedl.lock ] && [ -d "$CONFIG_DIR" ]; then
+    touch "$CONFIG_DIR"/cache/appimagedl.lock
+elif [ -f "$CONFIG_DIR"/cache/appimagedl.lock ]; then
+    ssft_select_single "${CLR_RED}appimagedl lock file error${CLR_CLEAR}" "appimagedl.lock file is still present.  Did appimagedl exit correctly?  Are you sure appimagedl isn't running? Remove appimagedl.lock file and run appimagedl?" "Remove lock file and run appimagedl" "Exit"
+    case $SSFT_RESULT in
+        Exit|n*|N*)
+            ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "appimagedl.lock file was not removed; make sure appimagedl is finished before running appimagedl again."
+            exit 1
+            ;;
+    esac
+    echo "Removing cache dir and starting appimagedl..."
+    rm -rf "$CONFIG_DIR"/cache/*
+fi
+
+# Check to make sure all necessary dependencies are present
+if ! type appimageupdatetool >/dev/null 2>&1; then
+    MISSING_DEPS="TRUE"
+    ssft_display_error "${CLR_RED}Dependency Error${CLR_CLEAR}" "Missing appimageupdatetool!"
+fi
+if ! type jq >/dev/null 2>&1; then
+    MISSING_DEPS="TRUE"
+    ssft_display_error "${CLR_RED}Dependency Error${CLR_CLEAR}" "Missing jq!"
+fi
+if ! type wget >/dev/null 2>&1; then
+    MISSING_DEPS="TRUE"
+    ssft_display_error "${CLR_RED}Dependency Error${CLR_CLEAR}" "Missing wget!"
+fi
+if [ "$MISSING_DEPS" = "TRUE" ]; then
+    ssft_display_error "${CLR_RED}Missing Dependencies${CLR_CLEAR}" "Missing one or more dependencies required to run.${CLR_CLEAR}  Try downloading the AppImage release of appimagedl.  The AppImage release contains all dependencies required to run."
+    cleanup "1"
+fi
+
+# Create dirs for configs, config files, and download AppImage lists on first run/if do not exist
+if [ ! -d "$CONFIG_DIR" ]; then
+    echo "appimagedl is being ran for the first time and/or config directory does not exist."
+    echo "Creating config directories..."
+    mkdir "$CONFIG_DIR"
+    mkdir "$CONFIG_DIR"/list
+    mkdir "$CONFIG_DIR"/downloaded
+    mkdir "$CONFIG_DIR"/upgrades
+    mkdir "$CONFIG_DIR"/downgrades
+    mkdir "$CONFIG_DIR"/cache
+    saveconf
+    updatelist
+    echo "First run operations complete!"
+fi
+
+# Add verbose output, debug, and noexec arguments
+# These arguments must be the called before all other arguments
+# Ex: 'appimagedl --verbose dl appimagetool'
+# If detected, other arguments are shifted one space to the right
+case $ARG in
+    --verbose)
+        ARG="$2"
+        APPIMAGE_INPUT="$3"
+        set -v
+        ;;
+    --debug)
+        ARG="$2"
+        APPIMAGE_INPUT="$3"
+        set -x
+        ;;
+    --noexec)
+        ARG="$2"
+        APPIMAGE_INPUT="$3"
+        set -v
+        set -n
+        ;;
+esac
+
+# TODO CREATE MAN PAGE
+# Check ARG input for valid arguments
+# Route found arguments to their matching functions
+# All unknown arguments are sent to help function
+case $ARG in
+    list|l)
+        case $APPIMAGE_INPUT in
+            -d|--downloaded)
+                listdownloaded
+                cleanup "0"
+                ;;
+            *)
+                listavailable
+                cleanup "0"
+                ;;
+        esac
+        ;;
+    info|i)
+        if [ -z "$APPIMAGE_INPUT" ]; then
+            ssft_display_error "${CLR_RED}Input Error${CLR_CLEAR}" "AppImage input required; exiting..."
+            cleanup "1"
+        fi
+        case $APPIMAGE_INPUT in
+            -d|--downloaded)
+                showinfodownloaded
+                cleanup "0"
+                ;;
+            *)
+                showinfo "$APPIMAGE_INPUT"
+                cleanup "0"
+                ;;
+        esac
+        ;;
+    download|dl)
+        if [ -z "$APPIMAGE_INPUT" ]; then
+            ssft_display_error "${CLR_RED}Input Error${CLR_CLEAR}" "AppImage input required; exiting..."
+            cleanup "1"
+        fi
+        ratelimitcheck
+        downloadchecks "$APPIMAGE_INPUT"
+        downloadappimage "$APPIMAGE_INPUT"
+        cleanup "0"
+        ;;
+    get)
+        if [ -z "$APPIMAGE_INPUT" ]; then
+            ssft_display_error "${CLR_RED}Input Error${CLR_CLEAR}" "AppImage input required; exiting..."
+            cleanup "1"
+        fi
+        if [ ! -d "$GET_DIR" ]; then
+            mkdir -p "$GET_DIR"
+        fi
+        ratelimitcheck
+        getappimage
+        cleanup "0"
+        ;;
+    remove|rm)
+        if [ -z "$APPIMAGE_INPUT" ]; then
+            ssft_display_error "${CLR_RED}Input Error${CLR_CLEAR}" "AppImage input required; exiting..."
+            cleanup "1"
+        fi
+        removeappimage "$APPIMAGE_INPUT"
+        cleanup "0"
+        ;;
+    update|up)
+        ratelimitcheck
+        updatelist
+        updatestart "$APPIMAGE_INPUT"
+        cleanup "0"
+        ;;
+    revert|rev)
+        if [ -z "$APPIMAGE_INPUT" ]; then
+            ssft_display_error "${CLR_RED}Input Error${CLR_CLEAR}" "AppImage input required; exiting..."
+            cleanup "1"
+        fi
+        revertappimage
+        cleanup "0"
+        ;;
+    freeze|fr)
+        if [ -z "$APPIMAGE_INPUT" ]; then
+            ssft_display_error "${CLR_RED}Input Error${CLR_CLEAR}" "AppImage input required; exiting..."
+            cleanup "1"
+        fi
+        updatestatus "$APPIMAGE_INPUT"
+        cleanup "0"
+        ;;
+    config|cf)
+        ssft_display_error "${CLR_RED}Warning${CLR_CLEAR}" "Please only edit appimagedl.conf if you have read the man page!"
+        sleep 3
+        $EDITOR "$CONFIG_DIR"/appimagedl.conf
+        if [ -f "$CONFIG_DIR/appimagedl.conf" ]; then
+            . "$CONFIG_DIR"/appimagedl.conf
+        fi
+        saveconf
+        cleanup "0"
+        ;;
+    man|m)
+        echo "todo man page"
+        cleanup "0"
+        ;;
+    *)
+        appimagedlhelp
+        cleanup "0"
+        ;;
+esac
