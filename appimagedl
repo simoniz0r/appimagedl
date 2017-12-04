@@ -659,7 +659,7 @@ if ! type wget >/dev/null 2>&1; then
     ssft_display_error "${CLR_RED}Dependency Error${CLR_CLEAR}" "Missing wget!"
 fi
 if [ "$MISSING_DEPS" = "TRUE" ]; then
-    ssft_display_error "${CLR_RED}Missing Dependencies${CLR_CLEAR}" "Missing one or more dependencies required to run.${CLR_CLEAR}  Try downloading the AppImage release of appimagedl.  The AppImage release contains all dependencies required to run."
+    ssft_display_error "${CLR_RED}Missing Dependencies${CLR_CLEAR}" "Missing one or more dependencies required to run. Try downloading the AppImage release of appimagedl. The AppImage release contains all dependencies required to run."
     cleanup "1"
 fi
 
