@@ -6,9 +6,6 @@
 # License: MIT
 # Dependencies: appimageupdatetool, jq, wget
 
-# Set arguments as variables for easier management
-ARG="$1"
-APPIMAGE_INPUT="$2"
 # Set default variables to be stored in config file on first run
 CONFIG_DIR="$HOME/.config/appimagedl"
 TARGET_DIR="/usr/local/bin"
@@ -603,6 +600,26 @@ elif [ -f ~/.config/appimagedl/appimagedl.conf ]; then
     . ~/.config/appimagedl/appimagedl.conf
 fi
 
+# Add verbose output, debug, and noexec arguments
+# These arguments must be the called before all other arguments
+# Ex: 'appimagedl --verbose dl appimagetool'
+# If detected, other arguments are shifted one space to the right
+case $1 in
+    --verbose)
+        set -v
+        shift
+        ;;
+    --debug)
+        set -x
+        shift
+        ;;
+    --noexec)
+        set -v
+        set -n
+        shift
+        ;;
+esac
+
 # Source in a slightly modified version of ssft.sh (https://github.com/sto/ssft) for nice prompts and error messages
 if [ -f "$RUNNING_DIR/ssft.sh" ]; then
     source "$RUNNING_DIR"/ssft.sh
@@ -661,32 +678,13 @@ if [ ! -d "$CONFIG_DIR" ]; then
     echo "First run operations complete!"
 fi
 
-# Add verbose output, debug, and noexec arguments
-# These arguments must be the called before all other arguments
-# Ex: 'appimagedl --verbose dl appimagetool'
-# If detected, other arguments are shifted one space to the right
-case $ARG in
-    --verbose)
-        ARG="$2"
-        APPIMAGE_INPUT="$3"
-        set -v
-        ;;
-    --debug)
-        ARG="$2"
-        APPIMAGE_INPUT="$3"
-        set -x
-        ;;
-    --noexec)
-        ARG="$2"
-        APPIMAGE_INPUT="$3"
-        set -v
-        set -n
-        ;;
-esac
-
 # Set and unset 'dir' alias to avoid issues on systems such as OpenSUSE that create a default 'dir' alias
 alias dir='dir'
 unalias dir
+
+# Set arguments as variables for easier management
+ARG="$1"
+APPIMAGE_INPUT="$2"
 
 # TODO CREATE MAN PAGE
 # Check ARG input for valid arguments
