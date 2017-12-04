@@ -565,6 +565,20 @@ function getappimage() {
     echo "AppImages downloaded using 'get' will be downloaded to $GET_DIR and will not be tracked."
 }
 
+function appimagedlconfig() {
+    ssft_display_error "${CLR_RED}Warning${CLR_CLEAR}" "Please only edit appimagedl.conf if you have read the man page!"
+    sleep 3
+    . "$CONFIG_DIR"/appimagedl.conf
+    cp "$CONFIG_DIR"/appimagedl.conf "$CONFIG_DIR"/cache/appimagedl.conf
+    $EDITOR "$CONFIG_DIR"/appimagedl.conf
+    if [ -f "$CONFIG_DIR/appimagedl.conf" ]; then
+        . "$CONFIG_DIR"/appimagedl.conf
+    else
+        mv "$CONFIG_DIR"/cache/appimagedl.conf
+        . "$CONFIG_DIR"/appimagedl.conf
+    fi
+}
+
 # TODO HELP FUNCTION
 function appimagedlhelp() {
     echo "todo help function"
@@ -670,6 +684,10 @@ case $ARG in
         ;;
 esac
 
+# Set and unset 'dir' alias to avoid issues on systems such as OpenSUSE that create a default 'dir' alias
+alias dir='dir'
+unalias dir
+
 # TODO CREATE MAN PAGE
 # Check ARG input for valid arguments
 # Route found arguments to their matching functions
@@ -756,12 +774,7 @@ case $ARG in
         cleanup "0"
         ;;
     config|cf)
-        ssft_display_error "${CLR_RED}Warning${CLR_CLEAR}" "Please only edit appimagedl.conf if you have read the man page!"
-        sleep 3
-        $EDITOR "$CONFIG_DIR"/appimagedl.conf
-        if [ -f "$CONFIG_DIR/appimagedl.conf" ]; then
-            . "$CONFIG_DIR"/appimagedl.conf
-        fi
+        appimagedlconfig
         saveconf
         cleanup "0"
         ;;
