@@ -132,9 +132,14 @@ function parsestoredinfo() {
 function listavailable() {
     for file in $(dir -C -w 1 "$CONFIG_DIR"/list); do
         APPIMAGE="$(echo "$file" | sed 's%.json%%g')"
-        echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR}"
+        if [ -f "$CONFIG_DIR/downloaded/$APPIMAGE" ]; then
+            echo "${CLR_GREEN}$APPIMAGE *${CLR_CLEAR}"
+        else
+            echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR}"
+        fi
     done | pr -tTaw $(tput cols) -$(($(tput cols)/45))
     echo
+    echo "${CLR_GREEN}* = already downloaded AppImage(s)${CLR_CLEAR}"
     echo "${CLR_BLUE}$(dir -C -w 1 "$CONFIG_DIR"/list | wc -l) AppImages available for download."
 }
 
