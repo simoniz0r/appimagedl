@@ -11,4 +11,6 @@ WIP! Easily download AppImages and keep them up to date.  Uses https://appimage.
 
 - [ ] Add a man page.
 
+- [ ] Build an AppImage of appimagedl.
+
 ![appimagedl-screenshot](/Screenshot.png)
