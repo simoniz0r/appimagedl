@@ -56,7 +56,7 @@ function saveconf() {
     echo "## can be launched in your terminal without editing PATH." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# If you do no wish to use 'sudo' when downloading AppImages,"  >> "$CONFIG_DIR"/appimagedl.conf
     echo "## you may change this to to a directory in $HOME." >> "$CONFIG_DIR"/appimagedl.conf
-    echo "# Only change this directory if you have no AppImages being managed by appimage!" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# Only change this directory if you have no AppImages being managed by appimagedl!" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
     echo "TARGET_DIR="\"$TARGET_DIR\""" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
