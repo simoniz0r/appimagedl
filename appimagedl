@@ -10,6 +10,7 @@
 CONFIG_DIR="$HOME/.config/appimagedl"
 TARGET_DIR="/usr/local/bin"
 GET_DIR="$HOME/AppImages"
+DOWNGRADE_LIMIT=5
 CLR_CLEAR="$(tput sgr0)"
 CLR_BLUE="$(tput setaf 4)"
 CLR_LGREEN="$(tput setaf 10)"
@@ -71,6 +72,10 @@ function saveconf() {
     echo "# AppImages downloaded to this directory will not be tracked by appimagedl, so it is safe to change." >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
     echo "GET_DIR="\"$GET_DIR\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "#" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# DOWNGRADE_LIMIT - The maximum amount of AppImages that will be stored in CONFIG_DIR/downgrades for use with revert argument." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "# Can be set to 0 to disable storage completely." >> "$CONFIG_DIR"/appimagedl.conf
+    echo "DOWNGRADE_LIMIT=$DOWNGRADE_LIMIT" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
     echo "# GITHUB_TOKEN - Token used to authenticate with Github's API to increase the rate limit." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# This field can be left blank if you are not having issues hitting the rate limit." >> "$CONFIG_DIR"/appimagedl.conf
@@ -365,7 +370,19 @@ function updatelist() {
     fi
 }
 
-# TODO ZSYNC UPDATES WITH APPIMAGEUPDATETOOL
+# TODO Maybe save backup time info somewhere and only remove oldest backup?
+# Function that checks CONFIG_DIR/downgrades against the set DOWNGRADE_LIMIT number
+# If number of backups is >= DOWNGRADE_LIMIT, CONFIG_DIR/downgrades is cleared
+# AppImages stored in this directory will be used with the 'revert' argument in case of problems with new versinos of AppImages
+function savedowngrade() {
+    APPIMAGE="$1"
+    if [ $(dir -C -w 1 "$CONFIG_DIR"/downgrades | wc -l) -ge $DOWNGRADE_LIMIT ]; then
+        rm -f "$CONFIG_DIR"/downgrades/*
+    fi
+    cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/downgrades/"$APPIMAGE"
+}
+
+# TODO TEST ZSYNC UPDATES WITH APPIMAGEUPDATETOOL
 # Function that checks CONFIG_DIR/upgrades for files containing update info
 # File is checked for ZSYNC_UPDATE to see whether appimageupdatetool can be used
 # If appimageupdatetool cannot be used, the latest release URL, version, and release date are loaded from stored file
@@ -381,15 +398,27 @@ function runupdate() {
         echo "${CLR_CYAN}Updating $APPIMAGE...${CLR_CLEAR}"
         . "$CONFIG_DIR"/upgrades/"$APPIMAGE"
         if [ "$ZSYNC_UPDATE" = "FALSE" ]; then
+            savedowngrade "$APPIMAGE"
             wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { ssft_display_error "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl"; cleanup "1"; }
             chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
+            echo "${CLR_GREEN}Moving updated $APPIMAGE to $TARGET_DIR ...${CLR_CLEAR}"
             trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
             trywithoutsudo "mv $CONFIG_DIR/cache/$APPIMAGE.AppImage $TARGET_DIR/$APPIMAGE"
             echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
             saveappimageinfo "$APPIMAGE"
             rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
         elif [ "$ZSYNC_UPDATE" = "TRUE" ]; then
-            echo "todo zsync update"
+            savedowngrade "$APPIMAGE"
+            mkdir "$CONFIG_DIR"/cache/temp
+            cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
+            appimageupdatetool -O "$CONFIG_DIR"/cache/temp/"$APPIMAGE" || { echo "${CLR_RED}Error updating $APPIMAGE with appimageupdatetool!${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/cache/temp; }
+            chmod a+x "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
+            echo "${CLR_GREEN}Moving updated $APPIMAGE to $TARGET_DIR ...${CLR_CLEAR}"
+            trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
+            trywithoutsudo "mv $CONFIG_DIR/cache/temp/$APPIMAGE $TARGET_DIR/$APPIMAGE"
+            githubrelease "$APPIMAGE" # TODO Find version info without using Github API when using appimageupdatetool
+            echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+            saveappimageinfo "$APPIMAGE"
             rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
         else
             ssft_display_error "${CLR_RED}$APPIMAGE Update Status Unknown!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl"
@@ -418,14 +447,13 @@ function githubupdatecheck() {
     fi
 }
 
-# TODO ZSYNCUPDATECHECK FUNCTION
+# TODO TEST ZSYNCUPDATECHECK FUNCTION
 # Function to check if zsync enabled AppImage has new update
 # Uses 'appimageupdatetool -j' to check update status
 # Creates a file in CONFIG_DIR/upgrades if new update is available
 function zsyncupdatecheck() {
     APPIMAGE="$1"
-    # ZSYNC_UPDATE_STATUS="$(appimageupdatetool -j "$TARGET_DIR"/"$APPIMAGE")"
-    echo "todo zsync"
+    appimageupdatetool -j "$TARGET_DIR"/"$APPIMAGE" > /dev/null 2>&1 || echo "ZSYNC_UPDATE="\"TRUE\""" > "$CONFIG_DIR"/upgrades/"$APPIMAGE"
 }
 
 # Function to check if AppImage can be updated using appimageupdatetool
