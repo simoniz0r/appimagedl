@@ -311,6 +311,10 @@ function removeappimage() {
     if [ -f "$CONFIG_DIR"/upgrades/"$APPIMAGE" ]; then
         rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
     fi
+    if [ -f "$CONFIG_DIR"/downgrades/"$APPIMAGE" ]; then
+        rm "$CONFIG_DIR"/downgrades/"$APPIMAGE"
+        rm -f "$CONFIG_DIR"/downgrades/."$APPIMAGE"
+    fi
     echo "Removing $TARGET_DIR/$APPIMAGE ..."
     trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
     rm "$CONFIG_DIR"/downloaded/"$APPIMAGE"
@@ -380,6 +384,7 @@ function savedowngrade() {
         rm -f "$CONFIG_DIR"/downgrades/*
     fi
     cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/downgrades/"$APPIMAGE"
+    cp "$CONFIG_DIR"/downloaded/"$APPIMAGE" "$CONFIG_DIR"/downgrades/."$APPIMAGE"
 }
 
 # TODO TEST ZSYNC UPDATES WITH APPIMAGEUPDATETOOL
@@ -511,9 +516,35 @@ function updatestart() {
     fi
 }
 
-# TODO REVERT FUNCTION
+# Checks CONFIG_DIR/downgrades to see if backup exists, if exists, backup config is sourced
+# Backup AppImage is moved to TARGET_DIR and backup config file is saved over the regular config file
 function revertappimage() {
-    echo "todo revert function to revert updates if cached AppImage exists and mark as FROZEN to prevent further updates until FROZEN mark is removed."
+    APPIMAGE="$1"
+    if [ ! -f "$CONFIG_DIR/downloaded/$APPIMAGE" ]; then
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "AppImage not found!"
+        cleanup "1"
+    elif [ ! -f "$CONFIG_DIR/downgrades/$APPIMAGE" ]; then
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "Backup for $APPIMAGE not found!"
+        cleanup "1"
+    fi
+    ssft_select_single "${CLR_BLUE}Downgrade $APPIMAGE${CLR_CLEAR}" "$APPIMAGE will be downgraded to the previous version and marked as FROZEN to prevent updates until UNFROZEN.  Continue?" "Revert $APPIMAGE and mark as FROZEN" "Exit"
+    case $SSFT_RESULT in
+        Exit)
+            ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not reverted to previous version."
+            cleanup "0"
+            ;;
+    esac
+    . "$CONFIG_DIR"/downgrades/."$APPIMAGE"
+    echo "${CLR_BLUE}Moving stored previous version of $APPIMAGE to $TARGET_DIR/$APPIMAGE ...${CLR_CLEAR}"
+    trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
+    trywithoutsudo "mv $CONFIG_DIR/downgrades/$APPIMAGE $TARGET_DIR/$APPIMAGE"
+    NEW_APPIMAGE_VERSION="$APPIMAGE_VERSION"
+    APPIMAGE_TAG="$APPIMAGE_STORED_TAG"
+    APPIMAGE_SIZE="$APPIMAGE_STORED_SIZE"
+    APPIMAGE_UPDATE_STATUS="FROZEN"
+    saveappimageinfo "$APPIMAGE"
+    rm -f "$CONFIG_DIR"/downgrades/."$APPIMAGE"
+    ssft_display_error "${CLR_BLUE}$APPIMAGE reverted and FROZEN${CLR_CLEAR}" "$APPIMAGE reverted to previous version and marked as FROZEN."
 }
 
 # Function to allow users to prevent AppImages from being upgraded
@@ -596,7 +627,7 @@ Arguments:
     *get        - download an AppImage to $GET_DIR without managing it
     remove|rm   - remove a downloaded AppImage
     update|up   - update list of AppImages and check downloaded AppImages for updates
-    *revert|rev - revert an updated AppImage to its previous version if available
+    revert|rev - revert an updated AppImage to its previous version if available
     freeze|fr   - mark or unmark an AppImage as FROZEN to preven update checks
     config|cf   - open appimagedl's config file with $EDITOR
     *man|m      - show appimagedl man page
@@ -791,7 +822,7 @@ case $ARG in
             ssft_display_error "${CLR_RED}Input Error${CLR_CLEAR}" "AppImage input required; exiting..."
             cleanup "1"
         fi
-        revertappimage
+        revertappimage "$APPIMAGE_INPUT"
         cleanup "0"
         ;;
     freeze|fr)
