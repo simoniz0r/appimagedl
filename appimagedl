@@ -416,7 +416,6 @@ function runupdate() {
             echo "${CLR_GREEN}Moving updated $APPIMAGE to $TARGET_DIR ...${CLR_CLEAR}"
             trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
             trywithoutsudo "mv $CONFIG_DIR/cache/temp/$APPIMAGE $TARGET_DIR/$APPIMAGE"
-            githubrelease "$APPIMAGE" # TODO Find version info without using Github API when using appimageupdatetool
             echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
             saveappimageinfo "$APPIMAGE"
             rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
@@ -427,51 +426,33 @@ function runupdate() {
     done
 }
 
-# Function to check if non zsync enabled AppImage has new update
-# Uses gitrelease function to check Github's API for latest updated_at time
-# Latest updated_at time is compared to stored time to see if new update has been released
-# If new update has been released, a file containing the new version's info is saved to CONFIG_DIR/upgrades
-# This file contains latest URL, version, and release date so Github API does not have to be checked again for runupdate function
-function githubupdatecheck() {
-    APPIMAGE="$1"
-    . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
-    githubrelease "$APPIMAGE"
-    if [ -z "$NEW_APPIMAGE_VERSION" ]; then
-        echo "${CLR_RED}Error checking version for $APPIMAGE; skipping...${CLR_CLEAR}"
-    elif [ "$NEW_APPIMAGE_VERSION" != "$APPIMAGE_VERSION" ]; then
-        echo "${CLR_GREEN}New update for $APPIMAGE! Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
-        echo "APPIMAGE_LATEST_URL="\"$APPIMAGE_LATEST_URL\""" > "$CONFIG_DIR"/upgrades/"$APPIMAGE"
-        echo "APPIMAGE_TAG="\"$APPIMAGE_TAG\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
-        echo "NEW_APPIMAGE_VERSION="\"$NEW_APPIMAGE_VERSION\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
-        echo "ZSYNC_UPDATE="\"FALSE\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
-    fi
-}
-
-# TODO TEST ZSYNCUPDATECHECK FUNCTION
-# Function to check if zsync enabled AppImage has new update
-# Uses 'appimageupdatetool -j' to check update status
-# Creates a file in CONFIG_DIR/upgrades if new update is available
-function zsyncupdatecheck() {
-    APPIMAGE="$1"
-    appimageupdatetool -j "$TARGET_DIR"/"$APPIMAGE" > /dev/null 2>&1 || echo "ZSYNC_UPDATE="\"TRUE\""" > "$CONFIG_DIR"/upgrades/"$APPIMAGE"
-}
-
 # Function to check if AppImage can be updated using appimageupdatetool
 # Uses 'appimageupdatetool -d' to check if valid information for updating exists in AppImage
 # If information does not exist, update check will happen using Github's API
 function updatecheck() {
     APPIMAGE="$1"
-    ZSYNC_UPDATE="$(appimageupdatetool -d "$TARGET_DIR"/"$APPIMAGE" 2> /dev/null | grep -m1 'Update information type:' | cut -f2 -d':')"
     if [ -f "$CONFIG_DIR/list/$APPIMAGE.json" ]; then
         parsestoredinfo "$APPIMAGE"
-        case $ZSYNC_UPDATE in
-            *Invalid*)
-                githubupdatecheck "$APPIMAGE"
-                ;;
-            *)
-                zsyncupdatecheck "$APPIMAGE"
-                ;;
-        esac
+        APPIMAGE="$1"
+        . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
+        githubrelease "$APPIMAGE"
+        if [ -z "$NEW_APPIMAGE_VERSION" ]; then
+            echo "${CLR_RED}Error checking version for $APPIMAGE; skipping...${CLR_CLEAR}"
+        elif [ "$NEW_APPIMAGE_VERSION" != "$APPIMAGE_VERSION" ]; then
+            echo "${CLR_GREEN}New update for $APPIMAGE! Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+            echo "APPIMAGE_LATEST_URL="\"$APPIMAGE_LATEST_URL\""" > "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+            echo "APPIMAGE_TAG="\"$APPIMAGE_TAG\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+            echo "NEW_APPIMAGE_VERSION="\"$NEW_APPIMAGE_VERSION\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+            ZSYNC_UPDATE="$(appimageupdatetool -d "$TARGET_DIR"/"$APPIMAGE" 2> /dev/null | grep -m1 'Update information type:' | cut -f2 -d':')"
+            case $ZSYNC_UPDATE in
+                *Invalid*)
+                    echo "ZSYNC_UPDATE="\"FALSE\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+                    ;;
+                *)
+                    echo "ZSYNC_UPDATE="\"TRUE\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+                    ;;
+            esac
+        fi
     else
         echo "${CLR_RED}$APPIMAGE not found in list; skipping update check...${CLR_CLEAR}"
     fi
