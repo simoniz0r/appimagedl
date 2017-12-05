@@ -582,6 +582,8 @@ Arguments:
     remove|rm   - remove a downloaded AppImage
     update|up   - update list of AppImages and check downloaded AppImages for updates
     *revert|rev - revert an updated AppImage to its previous version if available
+    freeze|fr   - mark or unmark an AppImage as FROZEN to preven update checks
+    config|cf   - open appimagedl's config file with $EDITOR
     *man|m      - show appimagedl man page
 Additional Aguments:
     [list|info] --downloaded|-d   - show list or info for downloaded AppImages
