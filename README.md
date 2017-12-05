@@ -9,7 +9,7 @@ WIP! Easily download AppImages and keep them up to date.  Uses https://appimage.
 
 - [ ] Add 'get' argument to download AppImages to a configurable GET_DIR.  AppImages downloaded this way will not be managed by appimagedl.  'get' argument will also be able to download previous versions instead of just the latest release like the 'download' argument.
 
-- [x] ~~Add 'revert' argument to revert updated AppImages in case of problems with the current version if the previous version is still stored.  Plan on storing ~5 AppImages in CONFIG_DIR/downgrades for use with this argument.~~
+- [x] ~~Add 'revert' argument to revert updated AppImages in case of problems with the current version if the previous version is still stored.  Plan on storing 5 AppImages in CONFIG_DIR/downgrades for use with this argument.~~
 
 - [ ] Add a man page.
 
