@@ -427,8 +427,8 @@ function runupdate() {
 }
 
 # Function to check if AppImage can be updated using appimageupdatetool
-# Uses 'appimageupdatetool -d' to check if valid information for updating exists in AppImage
-# If information does not exist, update check will happen using Github's API
+# Uses Github's API first to check AppImage for new update
+# Then uses 'appimageupdatetool -d' to check if valid information for updating exists in AppImage
 function updatecheck() {
     APPIMAGE="$1"
     if [ -f "$CONFIG_DIR/list/$APPIMAGE.json" ]; then
@@ -535,6 +535,9 @@ function updatestatus() {
                     cleanup "0"
                     ;;
             esac
+            NEW_APPIMAGE_VERSION="$APPIMAGE_VERSION"
+            APPIMAGE_TAG="$APPIMAGE_STORED_TAG"
+            APPIMAGE_SIZE="$APPIMAGE_STORED_SIZE"
             APPIMAGE_UPDATE_STATUS="CLEAR"
             saveappimageinfo "$APPIMAGE"
             ssft_display_error "${CLR_GREEN}$APPIMAGE UNFROZEN${CLR_CLEAR}" "$APPIMAGE marked as UNFROZEN."
@@ -547,6 +550,9 @@ function updatestatus() {
                     cleanup "0"
                     ;;
             esac
+            NEW_APPIMAGE_VERSION="$APPIMAGE_VERSION"
+            APPIMAGE_TAG="$APPIMAGE_STORED_TAG"
+            APPIMAGE_SIZE="$APPIMAGE_STORED_SIZE"
             APPIMAGE_UPDATE_STATUS="FROZEN"
             saveappimageinfo "$APPIMAGE"
             ssft_display_error "${CLR_BLUE}$APPIMAGE FROZEN${CLR_CLEAR}" "$APPIMAGE marked as FROZEN."
