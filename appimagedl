@@ -423,14 +423,17 @@ function runupdate() {
             savedowngrade "$APPIMAGE"
             mkdir "$CONFIG_DIR"/cache/temp
             cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
-            appimageupdatetool -O "$CONFIG_DIR"/cache/temp/"$APPIMAGE" || { echo "${CLR_RED}Error updating $APPIMAGE with appimageupdatetool!${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/cache/temp; }
-            chmod a+x "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
-            echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
-            trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
-            trywithoutsudo "mv $CONFIG_DIR/cache/temp/$APPIMAGE $TARGET_DIR/$APPIMAGE"
-            echo "${CLR_CYAN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
-            saveappimageinfo "$APPIMAGE"
-            rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+            cd "$CONFIG_DIR"/cache/temp
+            appimageupdatetool -O ./"$APPIMAGE" || { echo "${CLR_RED}Error updating $APPIMAGE with appimageupdatetool!${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/cache/temp; }
+            if [ -f "$CONFIG_DIR/cache/temp/$APPIMAGE" ]; then
+                chmod a+x "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
+                echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
+                trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
+                trywithoutsudo "mv $CONFIG_DIR/cache/temp/$APPIMAGE $TARGET_DIR/$APPIMAGE"
+                echo "${CLR_CYAN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+                saveappimageinfo "$APPIMAGE"
+                rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+            fi
         else
             ssft_display_error "${CLR_RED}$APPIMAGE Update Status Unknown!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl"
             rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
@@ -630,7 +633,7 @@ function appimagedlconfig() {
 }
 
 function appimagedlhelp() {
-printf '%s\n' "appimagedl 0.0.1
+printf '%s\n' "appimagedl 0.0.2
 Usage: appimagedl [option] [AppImage]
 appimagedl is a command line AppImage manager that integrates with AppImageHub.
 appimagedl uses https://appimage.github.io/feed.json to get information about
