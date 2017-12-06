@@ -102,11 +102,11 @@ function saveconf() {
 # If rate limit reaches 0, error message is outputted and user is told when it resets
 function ratelimitcheck() {
     if [ -z "$GITHUB_TOKEN" ]; then
-        wget -S --spider "https://api.github.com/rate_limit" -o "$CONFIG_DIR"/cache/rate.limit
-        echo "Github API rate limit: $(grep -m 1 '.*X-RateLimit-Remaining:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")/60 until $(date -d@$(grep -m 1 '.*X-RateLimit-Reset:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ") +"%T, %F")."  || { echo "Github rate limit check failed; exiting..."; cleanup "1"; }
+        wget -S --spider "https://api.github.com/rate_limit" -o "$CONFIG_DIR"/cache/rate.limit || { ssft_display_error "${CLR_RED}Rate Limit Check Failed${CLR_CLEAR}" "Github rate limit check failed! Exiting..."; cleanup "1"; }
+        echo "${CLR_GREEN}Github API rate limit: $(grep -m 1 '.*X-RateLimit-Remaining:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")/60 until $(date -d@$(grep -m 1 '.*X-RateLimit-Reset:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ") +"%T, %F").${CLR_CLEAR}"
     else
-        wget -S --spider --quiet --auth-no-challenge --header="Authorization: token "$GITHUB_TOKEN"" "https://api.github.com/rate_limit" -o "$CONFIG_DIR"/cache/rate.limit  || { echo "Github rate limit check failed; exiting..."; cleanup "1"; }
-        echo "Github API rate limit : $(grep -m 1 '.*X-RateLimit-Remaining:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")/5000 until $(date -d@$(grep -m 1 '.*X-RateLimit-Reset:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ") +"%T, %F")."
+        wget -S --spider --quiet --auth-no-challenge --header="Authorization: token "$GITHUB_TOKEN"" "https://api.github.com/rate_limit" -o "$CONFIG_DIR"/cache/rate.limit || { ssft_display_error "${CLR_RED}Rate Limit Check Failed${CLR_CLEAR}" "Github rate limit check failed! Exiting..."; cleanup "1"; }
+        echo "${CLR_GREEN}Github API rate limit : $(grep -m 1 '.*X-RateLimit-Remaining:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")/5000 until $(date -d@$(grep -m 1 '.*X-RateLimit-Reset:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ") +"%T, %F")."
     fi
     if [ "$(grep -m 1 '.*X-RateLimit-Remaining:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")" = "0" ]; then
         ssft_display_error "${CLR_RED}Github API rate limit reached! Try again at $(date -d@$(grep -m 1 '.*X-RateLimit-Reset:*.' "$CONFIG_DIR"/cache/rate.limit | cut -f4 -d" ")).${CLR_CLEAR}" "If you haven't already, you can add your token to $CONFIG_DIR/appimagedl.conf to avoid hitting the rate limit."
@@ -145,23 +145,23 @@ function listavailable() {
     for file in $(dir -C -w 1 "$CONFIG_DIR"/list); do
         APPIMAGE="$(echo "$file" | sed 's%.json%%g')"
         if [ -f "$CONFIG_DIR/downloaded/$APPIMAGE" ]; then
-            echo "${CLR_GREEN}$APPIMAGE *${CLR_CLEAR}"
+            echo "${CLR_LGREEN}$APPIMAGE *${CLR_CLEAR}"
         else
-            echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR}"
+            echo "${CLR_LGREEN}$APPIMAGE${CLR_CLEAR}"
         fi
     done | pr -tTaw $(tput cols) -$(($(tput cols)/45))
     echo
-    echo "${CLR_GREEN}* = already downloaded AppImage(s)${CLR_CLEAR}"
-    echo "${CLR_BLUE}$(dir -C -w 1 "$CONFIG_DIR"/list | wc -l) AppImages available for download."
+    echo "${CLR_LGREEN}* = already downloaded AppImage(s)${CLR_CLEAR}"
+    echo "${CLR_GREEN}$(dir -C -w 1 "$CONFIG_DIR"/list | wc -l) AppImages available for download."
 }
 
 # Function that lists all AppImages in CONFIG_DIR/downloaded and uses pr to put into columns
 function listdownloaded() {
     for file in $(dir -C -w 1 "$CONFIG_DIR"/downloaded); do
-        echo "${CLR_GREEN}$file${CLR_CLEAR}"
+        echo "${CLR_LGREEN}$file${CLR_CLEAR}"
     done | pr -tTaw $(tput cols) -$(($(tput cols)/45))
     echo
-    echo "${CLR_BLUE}$(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) downloaded AppImage(s)"
+    echo "${CLR_GREEN}$(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) downloaded AppImage(s)${CLR_CLEAR}"
 }
 
 # Function that uses jq to show the json file for any AppImage in CONFIG_DIR/list
@@ -177,11 +177,12 @@ function showinfo() {
 # Function that uses jq to show the json file for each AppImage in CONFIG_DIR/downloaded
 function showinfodownloaded() {
     for file in $(dir -C -w 1 "$CONFIG_DIR"/downloaded); do
-        echo "${CLR_GREEN}$file${CLR_CLEAR}:"
+        echo "$(tput bold)${CLR_LGREEN}$file${CLR_CLEAR}:"
         jq '.' "$CONFIG_DIR"/list/"$file".json
+        echo
     done
     echo
-    echo "${CLR_BLUE}$(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) downloaded AppImage(s)"
+    echo "${CLR_GREEN}$(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) downloaded AppImage(s)${CLR_CLEAR}"
 }
 
 # Function that uses wget and jq to get the latest release info for AppImage
@@ -275,12 +276,14 @@ function downloadappimage() {
     parsestoredinfo "$APPIMAGE"
     githubrelease "$APPIMAGE"
     if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
+        echo
         ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "Could not find download for $APPIMAGE from $APPIMAGE_DL_URL!"
         cleanup "1"
     fi
-    ssft_select_single "AppImage for ${CLR_GREEN}$APPIMAGE${CLR_CLEAR} will be downloaded and moved to $TARGET_DIR/$APPIMAGE." "Version: $APPIMAGE_TAG - Release date: $NEW_APPIMAGE_VERSION - Size: $APPIMAGE_SIZE - Downloads: $APPIMAGE_DOWNLOADS" "Download $APPIMAGE" "Exit"
+    ssft_select_single "${CLR_GREEN}AppImage for $(tput bold)${CLR_LGREEN}$APPIMAGE${CLR_CLEAR}${CLR_GREEN} will be downloaded and moved to $TARGET_DIR/$APPIMAGE${CLR_CLEAR}" "Version: $APPIMAGE_TAG - Release date: $NEW_APPIMAGE_VERSION - Size: $APPIMAGE_SIZE - Downloads: $APPIMAGE_DOWNLOADS" "Download $APPIMAGE" "Exit"
     case $SSFT_RESULT in
         Exit)
+            echo
             ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE was not downloaded."
             cleanup "0"
             ;;
@@ -289,7 +292,8 @@ function downloadappimage() {
     chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
     trywithoutsudo "mv $CONFIG_DIR/cache/$APPIMAGE.AppImage $TARGET_DIR/$APPIMAGE"
     saveappimageinfo "$APPIMAGE"
-    echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR} has been downloaded to $TARGET_DIR/$APPIMAGE"
+    echo
+    ssft_display_error "${CLR_LGREEN}$APPIMAGE${CLR_CLEAR}${CLR_GREEN} Downloaded${CLR_CLEAR}" "$APPIMAGE has been downloaded to $TARGET_DIR/$APPIMAGE"
 }
 
 # Function to remove downloaded AppImages
@@ -301,9 +305,10 @@ function removeappimage() {
         ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "AppImage not found!"
         cleanup "1"
     fi
-    ssft_select_single "Removing ${CLR_GREEN}$APPIMAGE${CLR_CLEAR}..." "$APPIMAGE will be removed! Continue?" "Remove $APPIMAGE" "Exit"
+    ssft_select_single "${CLR_RED}Remove $(tput bold)$APPIMAGE${CLR_CLEAR}" "$APPIMAGE will be removed! Continue?" "Remove $APPIMAGE" "Exit"
     case $SSFT_RESULT in
         Exit)
+            echo
             ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE was not removed."
             cleanup "0"
             ;;
@@ -315,10 +320,11 @@ function removeappimage() {
         rm "$CONFIG_DIR"/downgrades/"$APPIMAGE"
         rm -f "$CONFIG_DIR"/downgrades/."$APPIMAGE"
     fi
-    echo "Removing $TARGET_DIR/$APPIMAGE ..."
+    echo "${CLR_RED}Removing $TARGET_DIR/$APPIMAGE ...${CLR_CLEAR}"
     trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
     rm "$CONFIG_DIR"/downloaded/"$APPIMAGE"
-    echo "${CLR_GREEN}$APPIMAGE${CLR_CLEAR} has been removed!"
+    echo
+    ssft_display_error "${CLR_RED}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_RED} Removed${CLR_CLEAR}" "$APPIMAGE has been removed from $TARGET_DIR/$APPIMAGE !"
 }
 
 # Function that uses jq and csplit to parse https://appimage.github.io/feed.json into a usable format
@@ -332,7 +338,7 @@ function removeappimage() {
 function updatelist() {
     APPIMAGES_AVAILABLE="$(dir -C -w 1 "$CONFIG_DIR"/list)"
     printf '\e[?25l' # Hide cursor to prevent progress bar looking glitchy
-    echo "Parsing info for AppImages from AppImageHub..."
+    echo "${CLR_GREEN}Parsing info for AppImages from AppImageHub...${CLR_CLEAR}"
     echo -ne "[ $(tput setab 7) $(tput sgr0)                                         ]\r"
     mv "$CONFIG_DIR"/list/ "$CONFIG_DIR"/cache/
     mkdir "$CONFIG_DIR"/list
@@ -367,9 +373,9 @@ function updatelist() {
     if [ "$NEW_APPIMAGES_AVAILABLE" != "$APPIMAGES_AVAILABLE" ]; then
         echo -ne "${CLR_CYAN}AppImage list updated. AppImage list changes: ${CLR_CLEAR}\r"
         echo
-        echo "$(diff -u -d --color=never <(echo "$APPIMAGES_AVAILABLE") <(echo "$NEW_APPIMAGES_AVAILABLE") | grep '^\-[[:alnum:]].*\|^+[[:alnum:]].*' | sed "s%.json%%g;s%^-%${CLR_RED}- %g;s%^+%${CLR_GREEN}+ %g")${CLR_CLEAR}"
+        echo "$(diff -u -d --color=never <(echo "$APPIMAGES_AVAILABLE") <(echo "$NEW_APPIMAGES_AVAILABLE") | grep '^\-[[:alnum:]].*\|^+[[:alnum:]].*' | sed "s%.json%%g;s%^-%${CLR_RED}- %g;s%^+%${CLR_CYAN}+ %g")${CLR_CLEAR}"
     else
-        echo -ne "${CLR_BLUE}AppImage list updated. No new changes.        ${CLR_CLEAR}\r"
+        echo -ne "${CLR_GREEN}AppImage list updated. No new changes.        ${CLR_CLEAR}\r"
         echo
     fi
 }
@@ -395,21 +401,22 @@ function runupdate() {
     ssft_select_single "${CLR_CYAN}Update the following AppImages:${CLR_CLEAR}" "$(dir "$CONFIG_DIR"/upgrades)" "Update AppImage(s)" "Exit"
     case $SSFT_RESULT in
         Exit)
+            echo
             ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "AppImage(s) not updated."
             cleanup "0"
             ;;
     esac
     for APPIMAGE in $(dir -C -w 1 "$CONFIG_DIR"/upgrades); do
-        echo "${CLR_CYAN}Updating $APPIMAGE...${CLR_CLEAR}"
+        echo "${CLR_CYAN}Updating $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN}...${CLR_CLEAR}"
         . "$CONFIG_DIR"/upgrades/"$APPIMAGE"
         if [ "$ZSYNC_UPDATE" = "FALSE" ]; then
             savedowngrade "$APPIMAGE"
             wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { ssft_display_error "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl"; cleanup "1"; }
             chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
-            echo "${CLR_GREEN}Moving updated $APPIMAGE to $TARGET_DIR ...${CLR_CLEAR}"
+            echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
             trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
             trywithoutsudo "mv $CONFIG_DIR/cache/$APPIMAGE.AppImage $TARGET_DIR/$APPIMAGE"
-            echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+            echo "${CLR_CYAN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
             saveappimageinfo "$APPIMAGE"
             rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
         elif [ "$ZSYNC_UPDATE" = "TRUE" ]; then
@@ -418,10 +425,10 @@ function runupdate() {
             cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
             appimageupdatetool -O "$CONFIG_DIR"/cache/temp/"$APPIMAGE" || { echo "${CLR_RED}Error updating $APPIMAGE with appimageupdatetool!${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/cache/temp; }
             chmod a+x "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
-            echo "${CLR_GREEN}Moving updated $APPIMAGE to $TARGET_DIR ...${CLR_CLEAR}"
+            echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
             trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
             trywithoutsudo "mv $CONFIG_DIR/cache/temp/$APPIMAGE $TARGET_DIR/$APPIMAGE"
-            echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+            echo "${CLR_CYAN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
             saveappimageinfo "$APPIMAGE"
             rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
         else
@@ -442,9 +449,9 @@ function updatecheck() {
         . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
         githubrelease "$APPIMAGE"
         if [ -z "$NEW_APPIMAGE_VERSION" ]; then
-            echo "${CLR_RED}Error checking version for $APPIMAGE; skipping...${CLR_CLEAR}"
+            echo "${CLR_RED}Error checking version for $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_RED}; skipping...${CLR_CLEAR}"
         elif [ "$NEW_APPIMAGE_VERSION" != "$APPIMAGE_VERSION" ]; then
-            echo "${CLR_GREEN}New update for $APPIMAGE! Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+            echo "${CLR_CYAN}New update for $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN}! Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
             echo "APPIMAGE_LATEST_URL="\"$APPIMAGE_LATEST_URL\""" > "$CONFIG_DIR"/upgrades/"$APPIMAGE"
             echo "APPIMAGE_TAG="\"$APPIMAGE_TAG\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
             echo "NEW_APPIMAGE_VERSION="\"$NEW_APPIMAGE_VERSION\""" >> "$CONFIG_DIR"/upgrades/"$APPIMAGE"
@@ -459,7 +466,7 @@ function updatecheck() {
             esac
         fi
     else
-        echo "${CLR_RED}$APPIMAGE not found in list; skipping update check...${CLR_CLEAR}"
+        echo "${CLR_RED}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_RED} not found in list; skipping update check...${CLR_CLEAR}"
     fi
 }
 
@@ -470,7 +477,7 @@ function updatestart() {
     APPIMAGE="$1"
     if [ -z "$APPIMAGE" ]; then
         if [ $(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) -gt 0 ]; then
-            echo "Checking all downloaded AppImages for updates..."
+            echo "${CLR_GREEN}Checking all downloaded AppImages for updates...${CLR_CLEAR}"
             for appimage in $(dir -C -w 1 "$CONFIG_DIR"/downloaded); do
                 . "$CONFIG_DIR"/downloaded/"$appimage"
                 case $APPIMAGE_UPDATE_STATUS in
@@ -483,33 +490,38 @@ function updatestart() {
                 esac
             done
             if [ $(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l) -gt 0 ]; then
-                echo "${CLR_CYAN}$(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l) new AppImage update(s)!${CLR_CLEAR}"
+                NUM_UPDATES="$(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l)"
+                echo "${CLR_CYAN}$NUM_UPDATES new AppImage update(s)!${CLR_CLEAR}"
                 echo
                 runupdate
-                echo "${CLR_GREEN}AppImage update complete!${CLR_CLEAR}"
+                echo
+                ssft_display_error "${CLR_CYAN}Update Complete${CLR_CLEAR}" "$NUM_UPDATES AppImage(s) updated!"
             else
-                echo "${CLR_BLUE}Update check finished; no new AppImage updates.${CLR_CLEAR}"
+                echo
+                ssft_display_error "${CLR_GREEN}Update Check Finished${CLR_CLEAR}" "No new AppImage updates."
             fi
         fi
     else
         if [ ! -f "$CONFIG_DIR/downloaded/$APPIMAGE" ]; then
-            ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "AppImage not found!"
+            ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$APPIMAGE not found!"
             cleanup "1"
         fi
         echo "Checking $APPIMAGE for updates..."
         . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
         case $APPIMAGE_UPDATE_STATUS in
             FROZEN)
-                echo "${CLR_BLUE}$APPIMAGE has been marked as FROZEN; skipping update check...${CLR_CLEAR}"
+                echo "${CLR_BLUE}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_BLUE} has been marked as FROZEN; skipping update check...${CLR_CLEAR}"
                 ;;
             *)
                 updatecheck "$APPIMAGE"
                 if [ $(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l) -gt 0 ]; then
                     echo "${CLR_CYAN}New update for $APPIMAGE!${CLR_CLEAR}"
                     runupdate
-                    echo "${CLR_GREEN}$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+                    echo
+                    ssft_display_error "${CLR_CYAN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} Updated${CLR_CLEAR}" "$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION"
                 else
-                    echo "${CLR_BLUE}Update check finished; no new update for $APPIMAGE.${CLR_CLEAR}"
+                    echo
+                    ssft_display_error "${CLR_GREEN}Update Check Finished${CLR_CLEAR}" "No new update for $APPIMAGE"
                 fi
                 ;;
         esac
@@ -527,15 +539,16 @@ function revertappimage() {
         ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "Backup for $APPIMAGE not found!"
         cleanup "1"
     fi
-    ssft_select_single "${CLR_BLUE}Downgrade $APPIMAGE${CLR_CLEAR}" "$APPIMAGE will be downgraded to the previous version and marked as FROZEN to prevent updates until UNFROZEN.  Continue?" "Revert $APPIMAGE and mark as FROZEN" "Exit"
+    ssft_select_single "${CLR_BLUE}Downgrade $(tput bold)$APPIMAGE${CLR_CLEAR}" "$APPIMAGE will be downgraded to the previous version and marked as FROZEN to prevent updates until UNFROZEN.  Continue?" "Revert $APPIMAGE and mark as FROZEN" "Exit"
     case $SSFT_RESULT in
         Exit)
+            echo
             ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not reverted to previous version."
             cleanup "0"
             ;;
     esac
     . "$CONFIG_DIR"/downgrades/."$APPIMAGE"
-    echo "${CLR_BLUE}Moving stored previous version of $APPIMAGE to $TARGET_DIR/$APPIMAGE ...${CLR_CLEAR}"
+    echo "${CLR_BLUE}Moving stored previous version of $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_BLUE} to $TARGET_DIR/$APPIMAGE ...${CLR_CLEAR}"
     trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
     trywithoutsudo "mv $CONFIG_DIR/downgrades/$APPIMAGE $TARGET_DIR/$APPIMAGE"
     NEW_APPIMAGE_VERSION="$APPIMAGE_VERSION"
@@ -544,7 +557,8 @@ function revertappimage() {
     APPIMAGE_UPDATE_STATUS="FROZEN"
     saveappimageinfo "$APPIMAGE"
     rm -f "$CONFIG_DIR"/downgrades/."$APPIMAGE"
-    ssft_display_error "${CLR_BLUE}$APPIMAGE reverted and FROZEN${CLR_CLEAR}" "$APPIMAGE reverted to previous version and marked as FROZEN."
+    echo
+    ssft_display_error "${CLR_BLUE}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_BLUE} reverted and FROZEN${CLR_CLEAR}" "$APPIMAGE reverted to previous version and marked as FROZEN."
 }
 
 # Function to allow users to prevent AppImages from being upgraded
@@ -553,15 +567,16 @@ function revertappimage() {
 function updatestatus() {
     APPIMAGE="$1"
     if [ ! -f "$CONFIG_DIR/downloaded/$APPIMAGE" ]; then
-        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "AppImage not found!"
+        ssft_display_error "${CLR_RED}Error${CLR_CLEAR}" "$APPIMAGE not found!"
         cleanup "1"
     fi
     . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
     case $APPIMAGE_UPDATE_STATUS in
         FROZEN)
-            ssft_select_single "Mark ${CLR_GREEN}$APPIMAGE${CLR_CLEAR} as UNFROZEN" "$APPIMAGE is already marked as FROZEN and will be marked as UNFROZEN, allowing update checks. Continue?" "Mark $APPIMAGE as UNFROZEN" "Exit"
+            ssft_select_single "Mark ${CLR_GREEN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_GREEN} as UNFROZEN${CLR_CLEAR}" "$APPIMAGE is already marked as FROZEN and will be marked as UNFROZEN, allowing update checks. Continue?" "Mark $APPIMAGE as UNFROZEN" "Exit"
             case $SSFT_RESULT in
                 Exit)
+                    echo
                     ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not marked as UNFROZEN."
                     cleanup "0"
                     ;;
@@ -571,12 +586,14 @@ function updatestatus() {
             APPIMAGE_SIZE="$APPIMAGE_STORED_SIZE"
             APPIMAGE_UPDATE_STATUS="CLEAR"
             saveappimageinfo "$APPIMAGE"
-            ssft_display_error "${CLR_GREEN}$APPIMAGE UNFROZEN${CLR_CLEAR}" "$APPIMAGE marked as UNFROZEN."
+            echo
+            ssft_display_error "${CLR_GREEN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_GREEN} UNFROZEN${CLR_CLEAR}" "$APPIMAGE marked as UNFROZEN."
             ;;
         *)
-            ssft_select_single "Mark ${CLR_GREEN}$APPIMAGE${CLR_CLEAR} as FROZEN" "$APPIMAGE will be marked as FROZEN, preventing update checks until UNFROZEN. Continue?" "Mark $APPIMAGE as FROZEN" "Exit"
+            ssft_select_single "Mark ${CLR_BLUE}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_BLUE} as FROZEN${CLR_CLEAR}" "$APPIMAGE will be marked as FROZEN, preventing update checks until UNFROZEN. Continue?" "Mark $APPIMAGE as FROZEN" "Exit"
             case $SSFT_RESULT in
                 Exit)
+                    echo
                     ssft_display_error "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not marked as FROZEN."
                     cleanup "0"
                     ;;
@@ -586,7 +603,8 @@ function updatestatus() {
             APPIMAGE_SIZE="$APPIMAGE_STORED_SIZE"
             APPIMAGE_UPDATE_STATUS="FROZEN"
             saveappimageinfo "$APPIMAGE"
-            ssft_display_error "${CLR_BLUE}$APPIMAGE FROZEN${CLR_CLEAR}" "$APPIMAGE marked as FROZEN."
+            echo
+            ssft_display_error "${CLR_BLUE}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_BLUE} FROZEN${CLR_CLEAR}" "$APPIMAGE marked as FROZEN."
             ;;
     esac
 }
