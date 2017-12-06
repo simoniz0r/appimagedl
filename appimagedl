@@ -411,20 +411,22 @@ function runupdate() {
         . "$CONFIG_DIR"/upgrades/"$APPIMAGE"
         if [ "$ZSYNC_UPDATE" = "FALSE" ]; then
             savedowngrade "$APPIMAGE"
-            wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { ssft_display_error "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl"; cleanup "1"; }
-            chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
-            echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
-            trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
-            trywithoutsudo "mv $CONFIG_DIR/cache/$APPIMAGE.AppImage $TARGET_DIR/$APPIMAGE"
-            echo "${CLR_CYAN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
-            saveappimageinfo "$APPIMAGE"
-            rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+            wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { echo "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}"; rm -f "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage; rm -f "$CONFIG_DIR"/downgrades/"$APPIMAGE"; rm -f "$CONFIG_DIR"/downgrades/."$APPIMAGE"; }
+            if [ -f "$CONFIG_DIR/cache/$APPIMAGE.AppImage" ]; then
+                chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
+                echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
+                trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
+                trywithoutsudo "mv $CONFIG_DIR/cache/$APPIMAGE.AppImage $TARGET_DIR/$APPIMAGE"
+                echo "${CLR_CYAN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION${CLR_CLEAR}"
+                saveappimageinfo "$APPIMAGE"
+                rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
+            fi
         elif [ "$ZSYNC_UPDATE" = "TRUE" ]; then
             savedowngrade "$APPIMAGE"
             mkdir "$CONFIG_DIR"/cache/temp
             cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
             cd "$CONFIG_DIR"/cache/temp
-            appimageupdatetool -O ./"$APPIMAGE" || { echo "${CLR_RED}Error updating $APPIMAGE with appimageupdatetool!${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/cache/temp; }
+            appimageupdatetool -O ./"$APPIMAGE" || { echo "${CLR_RED}Error updating $APPIMAGE with appimageupdatetool!${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/cache/temp; rm -f "$CONFIG_DIR"/downgrades/"$APPIMAGE"; rm -f "$CONFIG_DIR"/downgrades/."$APPIMAGE"; }
             if [ -f "$CONFIG_DIR/cache/temp/$APPIMAGE" ]; then
                 chmod a+x "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
                 echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
