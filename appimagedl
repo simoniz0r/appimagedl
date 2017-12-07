@@ -482,7 +482,7 @@ function updatestart() {
     APPIMAGE="$1"
     if [ -z "$APPIMAGE" ]; then
         if [ $(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) -gt 0 ]; then
-            echo "${CLR_GREEN}Checking all downloaded AppImages for updates...${CLR_CLEAR}"
+            echo "${CLR_GREEN}Checking $(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) AppImage(s) for updates...${CLR_CLEAR}"
             for appimage in $(dir -C -w 1 "$CONFIG_DIR"/downloaded); do
                 . "$CONFIG_DIR"/downloaded/"$appimage"
                 case $APPIMAGE_UPDATE_STATUS in
@@ -497,13 +497,16 @@ function updatestart() {
             if [ $(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l) -gt 0 ]; then
                 NUM_UPDATES="$(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l)"
                 echo "${CLR_CYAN}$NUM_UPDATES new AppImage update(s)!${CLR_CLEAR}"
+                echo "${CLR_CYAN}Finished checking for updates in $(($(date +%s)-$UPD_START_TIME)) seconds${CLR_CLEAR}"
                 echo
                 runupdate
+                echo "${CLR_CYAN}Finished updates in $(($(date +%s)-$UPD_START_TIME)) seconds${CLR_CLEAR}"
                 echo
-                ssft_display_error "${CLR_CYAN}Update Complete${CLR_CLEAR}" "$NUM_UPDATES AppImage(s) updated!"
+                ssft_display_error "${CLR_CYAN}Updates Complete${CLR_CLEAR}" "$NUM_UPDATES AppImage(s) updated!"
             else
+                echo "${CLR_GREEN}Finished checking for updates in $(($(date +%s)-$UPD_START_TIME)) seconds${CLR_CLEAR}"
                 echo
-                ssft_display_error "${CLR_GREEN}Update Check Finished${CLR_CLEAR}" "No new AppImage updates."
+                ssft_display_error "${CLR_GREEN}Updates Complete${CLR_CLEAR}" "No new AppImage updates."
             fi
         fi
     else
@@ -521,12 +524,16 @@ function updatestart() {
                 updatecheck "$APPIMAGE"
                 if [ $(dir -C -w 1 "$CONFIG_DIR"/upgrades | wc -l) -gt 0 ]; then
                     echo "${CLR_CYAN}New update for $APPIMAGE!${CLR_CLEAR}"
+                    echo "${CLR_CYAN}Finished checking for update in $(($(date +%s)-$UPD_START_TIME)) seconds${CLR_CLEAR}"
+                    echo
                     runupdate
+                    echo "${CLR_CYAN}Finished update in $(($(date +%s)-$UPD_START_TIME)) seconds${CLR_CLEAR}"
                     echo
                     ssft_display_error "${CLR_CYAN}$(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} Updated${CLR_CLEAR}" "$APPIMAGE has been updated to Version: $APPIMAGE_TAG Release date: $NEW_APPIMAGE_VERSION"
                 else
+                    echo "${CLR_GREEN}Finished checking for update in $(($(date +%s)-$UPD_START_TIME)) seconds${CLR_CLEAR}"
                     echo
-                    ssft_display_error "${CLR_GREEN}Update Check Finished${CLR_CLEAR}" "No new update for $APPIMAGE"
+                    ssft_display_error "${CLR_GREEN}Update Complete${CLR_CLEAR}" "No new update for $APPIMAGE"
                 fi
                 ;;
         esac
@@ -836,6 +843,7 @@ case $ARG in
         ;;
     update|up)
         ratelimitcheck
+        UPD_START_TIME="$(date +%s)"
         updatelist
         updatestart "$APPIMAGE_INPUT"
         cleanup "0"
