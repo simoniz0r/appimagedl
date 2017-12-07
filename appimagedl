@@ -56,11 +56,12 @@ function askquestion() {
     for option in "$@"; do
         echo "${QUESTION_NUMBER}. $option"
         local QUESTION_NUMBER=$(($QUESTION_NUMBER+1))
+        echo "${QUESTION_NUMBER}. $option" >> "$CONFIG_DIR"/cache/.questionoptions
     done
     echo
     read -p "Option number: " -r QUESTION_SELECTION
     if echo "$QUESTION_SELECTION" | grep -q '^[0-9]' && [ $QUESTION_SELECTION -gt 0 ] && [ $QUESTION_SELECTION -le $NUM_OPTIONS ]; then
-        SELECTED_OPTION="$(echo "$@" | cut -f$(($QUESTION_SELECTION+1)) -d' ')"
+        SELECTED_OPTION="$(cat "$CONFIG_DIR"/cache/.questionoptions | head -n $QUESTION_SELECTION | tail -n 1 | cut -f2 -d' ')"
     else
         echo
         displaymessage "${CLR_RED}Error${CLR_CLEAR}" "Invalid selection made; exiting..."
@@ -624,7 +625,7 @@ function updatestatus() {
     . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
     case $APPIMAGE_UPDATE_STATUS in
         FROZEN)
-            askquestion "Mark ${CLR_GREEN}$APPIMAGE${CLR_GREEN} as UNFROZEN${CLR_CLEAR}" "$APPIMAGE is already marked as FROZEN and will be marked as UNFROZEN, allowing update checks. Continue?" "Mark $APPIMAGE as UNFROZEN" "Exit"
+            askquestion "${CLR_GREEN}Mark${CLR_LGREEN}$APPIMAGE${CLR_GREEN} as UNFROZEN${CLR_CLEAR}" "$APPIMAGE is already marked as FROZEN and will be marked as UNFROZEN, allowing update checks. Continue?" "Mark $APPIMAGE as UNFROZEN" "Exit"
             case $SELECTED_OPTION in
                 Exit)
                     echo
@@ -641,7 +642,7 @@ function updatestatus() {
             displaymessage "${CLR_GREEN}$APPIMAGE${CLR_GREEN} UNFROZEN${CLR_CLEAR}" "$APPIMAGE marked as UNFROZEN."
             ;;
         *)
-            askquestion "Mark ${CLR_BLUE}$APPIMAGE${CLR_BLUE} as FROZEN${CLR_CLEAR}" "$APPIMAGE will be marked as FROZEN, preventing update checks until UNFROZEN. Continue?" "Mark $APPIMAGE as FROZEN" "Exit"
+            askquestion "${CLR_BLUE}Mark $APPIMAGE${CLR_BLUE} as FROZEN${CLR_CLEAR}" "$APPIMAGE will be marked as FROZEN, preventing update checks until UNFROZEN. Continue?" "Mark $APPIMAGE as FROZEN" "Exit"
             case $SELECTED_OPTION in
                 Exit)
                     echo
