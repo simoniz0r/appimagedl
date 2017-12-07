@@ -410,9 +410,9 @@ function runupdate() {
         echo "${CLR_CYAN}Updating $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN}...${CLR_CLEAR}"
         . "$CONFIG_DIR"/upgrades/"$APPIMAGE"
         if [ "$ZSYNC_UPDATE" = "FALSE" ]; then
-            savedowngrade "$APPIMAGE"
-            wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { echo "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}"; rm -f "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage; rm -f "$CONFIG_DIR"/downgrades/"$APPIMAGE"; rm -f "$CONFIG_DIR"/downgrades/."$APPIMAGE"; }
+            wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage "$APPIMAGE_LATEST_URL" || { echo "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}"; rm -f "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage; }
             if [ -f "$CONFIG_DIR/cache/$APPIMAGE.AppImage" ]; then
+                savedowngrade "$APPIMAGE"
                 chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE".AppImage
                 echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
                 trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
@@ -422,12 +422,12 @@ function runupdate() {
                 rm "$CONFIG_DIR"/upgrades/"$APPIMAGE"
             fi
         elif [ "$ZSYNC_UPDATE" = "TRUE" ]; then
-            savedowngrade "$APPIMAGE"
             mkdir "$CONFIG_DIR"/cache/temp
             cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
             cd "$CONFIG_DIR"/cache/temp
-            appimageupdatetool -O ./"$APPIMAGE" || { echo "${CLR_RED}Error updating $APPIMAGE with appimageupdatetool!${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/cache/temp; rm -f "$CONFIG_DIR"/downgrades/"$APPIMAGE"; rm -f "$CONFIG_DIR"/downgrades/."$APPIMAGE"; }
+            appimageupdatetool -O ./"$APPIMAGE" || { echo "${CLR_RED}Error updating $APPIMAGE with appimageupdatetool!${CLR_CLEAR}"; rm -rf "$CONFIG_DIR"/cache/temp; }
             if [ -f "$CONFIG_DIR/cache/temp/$APPIMAGE" ]; then
+                savedowngrade "$APPIMAGE"
                 chmod a+x "$CONFIG_DIR"/cache/temp/"$APPIMAGE"
                 echo "${CLR_CYAN}Moving updated $(tput bold)$APPIMAGE${CLR_CLEAR}${CLR_CYAN} to $TARGET_DIR ...${CLR_CLEAR}"
                 trywithoutsudo "rm $TARGET_DIR/$APPIMAGE"
