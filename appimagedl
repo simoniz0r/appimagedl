@@ -55,16 +55,18 @@ function askquestion() {
     echo
     for option in "$@"; do
         echo "${QUESTION_NUMBER}. $option"
+        echo "$option" >> "$CONFIG_DIR"/cache/.questionoptions
         local QUESTION_NUMBER=$(($QUESTION_NUMBER+1))
-        echo "${QUESTION_NUMBER}. $option" >> "$CONFIG_DIR"/cache/.questionoptions
     done
     echo
     read -p "Option number: " -r QUESTION_SELECTION
     if echo "$QUESTION_SELECTION" | grep -q '^[0-9]' && [ $QUESTION_SELECTION -gt 0 ] && [ $QUESTION_SELECTION -le $NUM_OPTIONS ]; then
-        SELECTED_OPTION="$(cat "$CONFIG_DIR"/cache/.questionoptions | head -n $QUESTION_SELECTION | tail -n 1 | cut -f2 -d' ')"
+        SELECTED_OPTION="$(cat "$CONFIG_DIR"/cache/.questionoptions | head -n $QUESTION_SELECTION | tail -n 1)"
+        rm -f "$CONFIG_DIR"/cache/.questionoptions
     else
         echo
         displaymessage "${CLR_RED}Error${CLR_CLEAR}" "Invalid selection made; exiting..."
+        rm -f "$CONFIG_DIR"/cache/.questionoptions
         cleanup "1"
     fi
 }
