@@ -25,6 +25,7 @@ RUNNING_DIR="$(dirname "$REALPATH")"
 # Function that is used to clean up CONFIG_DIR/cache every time appimagedl exits and exit with exit status sent to it
 function cleanup() {
     rm -rf "$CONFIG_DIR"/cache/*
+    rm -f "$CONFIG_DIR"/cache/.questionoptions
     printf '\e[?25h' # Show cursor in case we exit while it's hidden
     exit $1
 }
@@ -627,7 +628,7 @@ function updatestatus() {
     . "$CONFIG_DIR"/downloaded/"$APPIMAGE"
     case $APPIMAGE_UPDATE_STATUS in
         FROZEN)
-            askquestion "${CLR_GREEN}Mark${CLR_LGREEN}$APPIMAGE${CLR_GREEN} as UNFROZEN${CLR_CLEAR}" "$APPIMAGE is already marked as FROZEN and will be marked as UNFROZEN, allowing update checks. Continue?" "Mark $APPIMAGE as UNFROZEN" "Exit"
+            askquestion "${CLR_GREEN}Mark ${CLR_LGREEN}$APPIMAGE${CLR_GREEN} as UNFROZEN${CLR_CLEAR}" "$APPIMAGE is already marked as FROZEN and will be marked as UNFROZEN, allowing update checks. Continue?" "Mark $APPIMAGE as UNFROZEN" "Exit"
             case $SELECTED_OPTION in
                 Exit)
                     echo
@@ -641,10 +642,10 @@ function updatestatus() {
             APPIMAGE_UPDATE_STATUS="CLEAR"
             saveappimageinfo "$APPIMAGE"
             echo
-            displaymessage "${CLR_GREEN}$APPIMAGE${CLR_GREEN} UNFROZEN${CLR_CLEAR}" "$APPIMAGE marked as UNFROZEN."
+            displaymessage "${CLR_LGREEN}$APPIMAGE${CLR_GREEN} UNFROZEN${CLR_CLEAR}" "$APPIMAGE marked as UNFROZEN."
             ;;
         *)
-            askquestion "${CLR_BLUE}Mark $APPIMAGE${CLR_BLUE} as FROZEN${CLR_CLEAR}" "$APPIMAGE will be marked as FROZEN, preventing update checks until UNFROZEN. Continue?" "Mark $APPIMAGE as FROZEN" "Exit"
+            askquestion "${CLR_BLUE}Mark ${CLR_CYAN}$APPIMAGE${CLR_BLUE} as FROZEN${CLR_CLEAR}" "$APPIMAGE will be marked as FROZEN, preventing update checks until UNFROZEN. Continue?" "Mark $APPIMAGE as FROZEN" "Exit"
             case $SELECTED_OPTION in
                 Exit)
                     echo
@@ -658,7 +659,7 @@ function updatestatus() {
             APPIMAGE_UPDATE_STATUS="FROZEN"
             saveappimageinfo "$APPIMAGE"
             echo
-            displaymessage "${CLR_BLUE}$APPIMAGE${CLR_BLUE} FROZEN${CLR_CLEAR}" "$APPIMAGE marked as FROZEN."
+            displaymessage "${CLR_CYAN}$APPIMAGE${CLR_BLUE} FROZEN${CLR_CLEAR}" "$APPIMAGE marked as FROZEN."
             ;;
     esac
 }
