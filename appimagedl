@@ -62,7 +62,7 @@ function askquestion() {
     echo
     read -p "Option number: " -r QUESTION_SELECTION
     if echo "$QUESTION_SELECTION" | grep -q '^[0-9]' && [ $QUESTION_SELECTION -gt 0 ] && [ $QUESTION_SELECTION -le $NUM_OPTIONS ]; then
-        SELECTED_OPTION="$(cat "$CONFIG_DIR"/cache/.questionoptions | head -n $QUESTION_SELECTION | tail -n 1)"
+        SELECTED_OPTION="$QUESTION_SELECTION"
         rm -f "$CONFIG_DIR"/cache/.questionoptions
     else
         echo
@@ -244,21 +244,21 @@ function githubrelease () {
         wget --quiet --auth-no-challenge --header="Authorization: token "$GITHUB_TOKEN"" "$APPIMAGE_API_URL" -O "$CONFIG_DIR"/cache/"$APPIMAGE"full || { displaymessage "${CLR_RED}Error${CLR_CLEAR}" "wget failed!"; cleanup "1"; }
     fi
     cd "$CONFIG_DIR"/cache
-    JQARG=".[].assets[] | select(.name | contains(\".AppImage\"), contains(\".appimage\")) | select(.name | contains(\"$APPIMAGE_NAME\")) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
+    JQARG=".[].assets[] | select(.name | contains(\".AppImage\"), contains(\".appimage\")) | select(.name | contains(\"$APPIMAGE_NAME\")) | select(.name | contains(\".zsync\") | not) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
     cat "$CONFIG_DIR"/cache/"$APPIMAGE"full | jq --raw-output "$JQARG" | csplit --digits=2 --quiet --prefix="$APPIMAGE" --suffix-format=%02d.json - "/^{/" "{*}"
     if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
         rm -f "$CONFIG_DIR"/cache/"$APPIMAGE"00.json
-        JQARG=".[].assets[] | select(.name | contains(\".AppImage\"), contains(\".appimage\")) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
+        JQARG=".[].assets[] | select(.name | contains(\".AppImage\"), contains(\".appimage\")) | select(.name | contains(\".zsync\") | not) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
         cat "$CONFIG_DIR"/cache/"$APPIMAGE"full | jq --raw-output "$JQARG" | csplit --digits=2 --quiet --prefix="$APPIMAGE" --suffix-format=%02d.json - "/^{/" "{*}"
     fi
     if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
         rm -f "$CONFIG_DIR"/cache/"$APPIMAGE"00.json
-        JQARG=".[].assets[] | select(.name | contains(\"$APPIMAGE_NAME\")) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
+        JQARG=".[].assets[] | select(.name | contains(\"$APPIMAGE_NAME\")) | select(.name | contains(\".zsync\") | not) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
         cat "$CONFIG_DIR"/cache/"$APPIMAGE"full | jq --raw-output "$JQARG" | csplit --digits=2 --quiet --prefix="$APPIMAGE" --suffix-format=%02d.json - "/^{/" "{*}"
     fi
     if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
         rm -f "$CONFIG_DIR"/cache/"$APPIMAGE"00.json
-        JQARG=".[].assets[] | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
+        JQARG=".[].assets[] | select(.name | contains(\".zsync\") | not) | select(.name | contains(\"ia32\") | not) | select(.name | contains(\"i386\") | not) | select(.name | contains(\"i686\") | not) | { name: .name, updated: .updated_at, url: .browser_download_url, size: .size, numdls: .download_count}"
         cat "$CONFIG_DIR"/cache/"$APPIMAGE"full | jq --raw-output "$JQARG" | csplit --digits=2 --quiet --prefix="$APPIMAGE" --suffix-format=%02d.json - "/^{/" "{*}"
     fi
     if [ -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
@@ -325,7 +325,7 @@ function downloadappimage() {
     fi
     askquestion "${CLR_GREEN}AppImage for ${CLR_LGREEN}$APPIMAGE${CLR_GREEN} will be downloaded and moved to $TARGET_DIR/$APPIMAGE${CLR_CLEAR}" "Version: $APPIMAGE_TAG - Release date: $NEW_APPIMAGE_VERSION - Size: $APPIMAGE_SIZE - Downloads: $APPIMAGE_DOWNLOADS" "Download $APPIMAGE" "Exit"
     case $SELECTED_OPTION in
-        Exit)
+        2)
             echo
             displaymessage "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE was not downloaded."
             cleanup "0"
@@ -339,6 +339,46 @@ function downloadappimage() {
     displaymessage "${CLR_LGREEN}$APPIMAGE${CLR_GREEN} Downloaded${CLR_CLEAR}" "$APPIMAGE has been downloaded to $TARGET_DIR/$APPIMAGE"
 }
 
+# TODO GET FUNCTION
+function getappimage() {
+    APPIMAGE="$1"
+    parsestoredinfo "$APPIMAGE"
+    githubrelease "$APPIMAGE"
+    if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
+        echo
+        displaymessage "${CLR_RED}Error${CLR_CLEAR}" "Could not find download for $APPIMAGE from $APPIMAGE_DL_URL!"
+        cleanup "1"
+    fi
+    rm -f "$CONFIG_DIR"/cache/"$APPIMAGE"00.json
+    for jsonfile in $(dir -C -w 1 "$CONFIG_DIR"/cache | grep '.*\.json' ); do
+        echo "$(jq -r '.url' "$CONFIG_DIR"/cache/"$jsonfile" | cut -f9 -d'/')-$(jq -r '.updated' "$CONFIG_DIR"/cache/"$jsonfile")" >> "$CONFIG_DIR"/cache/getappimages.list
+    done
+    NUM_APPIMAGES=$(cat "$CONFIG_DIR"/cache/getappimages.list | head -n 5 | wc -l)
+    echo "$(cat "$CONFIG_DIR"/cache/getappimages.list | head -n 5 | tr '\n' ' ')" > "$CONFIG_DIR"/cache/getappimages.list
+    askquestion "${CLR_GREEN}$NUM_APPIMAGES releases found for ${CLR_LGREEN}$APPIMAGE${CLR_GREEN}${CLR_CLEAR}" "Select a version of $APPIMAGE to download to $GET_DIR" $(cat "$CONFIG_DIR"/cache/getappimages.list) "Exit"
+    case $SELECTED_OPTION in
+        6)
+            echo
+            displaymessage "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE was not downloaded."
+            cleanup "0"
+            ;;
+    esac
+    APPIMAGE_NAME="$(jq -r '.name' "$CONFIG_DIR"/cache/"$APPIMAGE"0$SELECTED_OPTION.json)"
+    NEW_APPIMAGE_VERSION="$(jq -r '.updated' "$CONFIG_DIR"/cache/"$APPIMAGE"0$SELECTED_OPTION.json)"
+    APPIMAGE_LATEST_URL="$(jq -r '.url' "$CONFIG_DIR"/cache/"$APPIMAGE"0$SELECTED_OPTION.json)"
+    APPIMAGE_SIZE="$(jq -r '.size' "$CONFIG_DIR"/cache/"$APPIMAGE"0$SELECTED_OPTION.json)"
+    APPIMAGE_SIZE="$(awk "BEGIN {print ("$APPIMAGE_SIZE"/1024)/1024}" | cut -c-5) MBs"
+    APPIMAGE_DOWNLOADS="$(jq -r '.numdls' "$CONFIG_DIR"/cache/"$APPIMAGE"0$SELECTED_OPTION.json)"
+    APPIMAGE_TAG="$(echo "$APPIMAGE_LATEST_URL" | cut -f8 -d"/")"
+    echo
+    echo "${CLR_GREEN}Downloading ${CLR_LGREEN}$APPIMAGE${CLR_GREEN} Version: $APPIMAGE_TAG - Release date: $NEW_APPIMAGE_VERSION to $GET_DIR ..."
+    wget --no-verbose --show-progress -O "$CONFIG_DIR"/cache/"$APPIMAGE"-"$APPIMAGE_TAG"-x86_64.AppImage "$APPIMAGE_LATEST_URL" || { displaymessage "${CLR_RED}Error downloading $APPIMAGE!${CLR_CLEAR}" "If this continues to happen, please report an issue at https://github.com/simoniz0r/appimagedl${CLR_CLEAR}"; cleanup "1"; }
+    chmod a+x "$CONFIG_DIR"/cache/"$APPIMAGE"-"$APPIMAGE_TAG"-x86_64.AppImage
+    trywithoutsudo "mv $CONFIG_DIR/cache/$APPIMAGE-$APPIMAGE_TAG-x86_64.AppImage $GET_DIR/$APPIMAGE-$APPIMAGE_TAG-x86_64.AppImage"
+    echo
+    displaymessage "${CLR_LGREEN}$APPIMAGE${CLR_GREEN} Downloaded${CLR_CLEAR}" "$APPIMAGE has been downloaded to $GET_DIR/$APPIMAGE-$APPIMAGE_TAG-x86_64.AppImage"
+}
+
 # Function to remove downloaded AppImages
 # First checks to make sure user inputted AppImage is being tracked by appimagedl
 # Finally, CONFIG_DIR/upgrades is checked to see if AppImage was marked for upgrade and removes file there if it exists
@@ -350,7 +390,7 @@ function removeappimage() {
     fi
     askquestion "${CLR_RED}Remove $APPIMAGE${CLR_CLEAR}" "$APPIMAGE will be removed! Continue?" "Remove $APPIMAGE" "Exit"
     case $SELECTED_OPTION in
-        Exit)
+        2)
             echo
             displaymessage "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE was not removed."
             cleanup "0"
@@ -443,7 +483,7 @@ function savedowngrade() {
 function runupdate() {
     askquestion "${CLR_CYAN}Update the following AppImages:${CLR_CLEAR}" "$(dir "$CONFIG_DIR"/upgrades)" "Update AppImage(s)" "Exit"
     case $SELECTED_OPTION in
-        Exit)
+        2)
             echo
             displaymessage "${CLR_RED}Exiting...${CLR_CLEAR}" "AppImage(s) not updated."
             cleanup "0"
@@ -596,7 +636,7 @@ function revertappimage() {
     fi
     askquestion "${CLR_BLUE}Downgrade $APPIMAGE${CLR_CLEAR}" "$APPIMAGE will be downgraded to the previous version and marked as FROZEN to prevent updates until UNFROZEN.  Continue?" "Revert $APPIMAGE and mark as FROZEN" "Exit"
     case $SELECTED_OPTION in
-        Exit)
+        2)
             echo
             displaymessage "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not reverted to previous version."
             cleanup "0"
@@ -630,7 +670,7 @@ function updatestatus() {
         FROZEN)
             askquestion "${CLR_GREEN}Mark ${CLR_LGREEN}$APPIMAGE${CLR_GREEN} as UNFROZEN${CLR_CLEAR}" "$APPIMAGE is already marked as FROZEN and will be marked as UNFROZEN, allowing update checks. Continue?" "Mark $APPIMAGE as UNFROZEN" "Exit"
             case $SELECTED_OPTION in
-                Exit)
+                2)
                     echo
                     displaymessage "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not marked as UNFROZEN."
                     cleanup "0"
@@ -647,7 +687,7 @@ function updatestatus() {
         *)
             askquestion "${CLR_BLUE}Mark ${CLR_CYAN}$APPIMAGE${CLR_BLUE} as FROZEN${CLR_CLEAR}" "$APPIMAGE will be marked as FROZEN, preventing update checks until UNFROZEN. Continue?" "Mark $APPIMAGE as FROZEN" "Exit"
             case $SELECTED_OPTION in
-                Exit)
+                2)
                     echo
                     displaymessage "${CLR_RED}Exiting...${CLR_CLEAR}" "$APPIMAGE not marked as FROZEN."
                     cleanup "0"
@@ -662,12 +702,6 @@ function updatestatus() {
             displaymessage "${CLR_CYAN}$APPIMAGE${CLR_BLUE} FROZEN${CLR_CLEAR}" "$APPIMAGE marked as FROZEN."
             ;;
     esac
-}
-
-# TODO GET FUNCTION
-function getappimage() {
-    echo "todo get function that lists all available AppImages from releases page for download"
-    echo "AppImages downloaded using 'get' will be downloaded to $GET_DIR and will not be tracked."
 }
 
 function appimagedlconfig() {
@@ -685,7 +719,7 @@ function appimagedlconfig() {
 }
 
 function appimagedlhelp() {
-printf '%s\n' "appimagedl 0.0.2
+printf '%s\n' "appimagedl 0.0.3
 Usage: appimagedl [option] [AppImage]
 appimagedl is a command line AppImage manager that integrates with AppImageHub.
 appimagedl uses https://appimage.github.io/feed.json to get information about
@@ -697,7 +731,7 @@ Arguments:
     list|l      - list all available AppImages
     info|i      - output json file containing information for an AppImage
     download|dl - download an AppImage to $TARGET_DIR
-    *get        - download an AppImage to $GET_DIR without managing it
+    get         - download an AppImage to $GET_DIR without managing it
     remove|rm   - remove a downloaded AppImage
     update|up   - update list of AppImages and check downloaded AppImages for updates
     revert|rev  - revert an updated AppImage to its previous version if available
@@ -762,7 +796,7 @@ if [ ! -f "$CONFIG_DIR"/cache/appimagedl.lock ] && [ -d "$CONFIG_DIR" ]; then
 elif [ -f "$CONFIG_DIR"/cache/appimagedl.lock ]; then
     askquestion "${CLR_RED}appimagedl lock file error${CLR_CLEAR}" "appimagedl.lock file is still present.  Did appimagedl exit correctly?  Are you sure appimagedl isn't running? Remove appimagedl.lock file and run appimagedl?" "Remove lock file and run appimagedl" "Exit"
     case $SELECTED_OPTION in
-        Exit|n*|N*)
+        2)
             displaymessage "${CLR_RED}Error${CLR_CLEAR}" "appimagedl.lock file was not removed; make sure appimagedl is finished before running appimagedl again."
             exit 1
             ;;
@@ -864,7 +898,7 @@ case $ARG in
             mkdir -p "$GET_DIR"
         fi
         ratelimitcheck
-        getappimage
+        getappimage "$APPIMAGE_INPUT"
         cleanup "0"
         ;;
     remove|rm)
