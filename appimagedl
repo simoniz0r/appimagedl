@@ -339,7 +339,9 @@ function downloadappimage() {
     displaymessage "${CLR_LGREEN}$APPIMAGE${CLR_GREEN} Downloaded${CLR_CLEAR}" "$APPIMAGE has been downloaded to $TARGET_DIR/$APPIMAGE"
 }
 
-# TODO GET FUNCTION
+# Function to download AppImages to GET_DIR.
+# AppImages downloaded through this function are not tracked by appimagedl after download (no update checks, etc)
+# Shows the 5 latest releases
 function getappimage() {
     APPIMAGE="$1"
     parsestoredinfo "$APPIMAGE"
