@@ -471,11 +471,13 @@ function updatelist() {
 # AppImages stored in this directory will be used with the 'revert' argument in case of problems with new versinos of AppImages
 function savedowngrade() {
     APPIMAGE="$1"
-    if [ $(dir -C -w 1 "$CONFIG_DIR"/downgrades | wc -l) -ge $DOWNGRADE_LIMIT ]; then
-        rm -f "$CONFIG_DIR"/downgrades/*
+    if [ $DOWNGRADE_LIMIT -gt 0 ]; then
+        if [ $(dir -C -w 1 "$CONFIG_DIR"/downgrades | wc -l) -ge $DOWNGRADE_LIMIT ]; then
+            rm -f "$CONFIG_DIR"/downgrades/*
+        fi
+        cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/downgrades/"$APPIMAGE"
+        cp "$CONFIG_DIR"/downloaded/"$APPIMAGE" "$CONFIG_DIR"/downgrades/."$APPIMAGE"
     fi
-    cp "$TARGET_DIR"/"$APPIMAGE" "$CONFIG_DIR"/downgrades/"$APPIMAGE"
-    cp "$CONFIG_DIR"/downloaded/"$APPIMAGE" "$CONFIG_DIR"/downgrades/."$APPIMAGE"
 }
 
 # TODO TEST ZSYNC UPDATES WITH APPIMAGEUPDATETOOL
