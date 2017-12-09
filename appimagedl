@@ -344,6 +344,10 @@ function downloadappimage() {
 # Shows the 5 latest releases
 function getappimage() {
     APPIMAGE="$1"
+    if [ ! -f "$CONFIG_DIR/list/$APPIMAGE.json" ]; then
+        displaymessage "${CLR_RED}Error${CLR_CLEAR}" "$APPIMAGE not found!"
+        cleanup "1"
+    fi
     parsestoredinfo "$APPIMAGE"
     githubrelease "$APPIMAGE"
     if [ ! -f "$CONFIG_DIR/cache/${APPIMAGE}01.json" ]; then
