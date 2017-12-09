@@ -11,6 +11,8 @@ WIP! Easily download AppImages and keep them up to date.  Uses https://appimage.
 
 - [x] ~~Add 'revert' argument to revert updated AppImages in case of problems with the current version if the previous version is still stored.  Plan on storing 5 AppImages in CONFIG_DIR/downgrades for use with this argument.~~
 
+- [ ] Add a tab completion file for zsh (and possibly bash also).
+
 - [ ] Add a man page.
 
 - [x] ~~Build an AppImage of appimagedl.~~
