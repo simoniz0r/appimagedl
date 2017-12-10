@@ -802,7 +802,7 @@ case $1 in
         ;;
 esac
 
-# Add tab completion function sourcing to .bashrc and .zshrc if appimagedl is installed or has an alias created for it
+# Add tab completion function sourcing to .bashrc and .zshrc if appimagedl is found by type
 if type appimagedl >/dev/null 2>&1 && [ -f ~/.zshrc ] && ! grep -q 'appimagedl-completion.sh' ~/.zshrc; then
     wget --quiet "https://raw.githubusercontent.com/simoniz0r/appimagedl/master/appimagedl-completion.sh" -O "$CONFIG_DIR"/appimagedl-completion.sh
     echo "" >> ~/.zshrc
