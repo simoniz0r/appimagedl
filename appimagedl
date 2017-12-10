@@ -100,7 +100,7 @@ function saveconf() {
     echo "# Also used for temporary caching of AppImages before moved to TARGET_DIR." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# Changing this directory will cause appimagedl to lose track of already downloaded AppImages!" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p CONFIG_DIR >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CONFIG_DIR="\"$CONFIG_DIR\""" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
     echo "# TARGET_DIR - Directory where AppImages will be downloaded to." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# /usr/local/bin is used by default so that downloaded AppImages"  >> "$CONFIG_DIR"/appimagedl.conf
@@ -109,34 +109,34 @@ function saveconf() {
     echo "## you may change this to to a directory in $HOME." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# Only change this directory if you have no AppImages being managed by appimagedl!" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p TARGET_DIR >> "$CONFIG_DIR"/appimagedl.conf
+    echo "TARGET_DIR="\"$TARGET_DIR\""" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
     echo "# GET_DIR - Directory where AppImages will be downloaded to when using 'get' argument." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# AppImages downloaded to this directory will not be tracked by appimagedl, so it is safe to change." >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p GET_DIR >> "$CONFIG_DIR"/appimagedl.conf
+    echo "GET_DIR="\"$GET_DIR\""" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
     echo "# DOWNGRADE_LIMIT - The maximum amount of AppImages that will be stored in CONFIG_DIR/downgrades for use with revert argument." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# Can be set to 0 to disable storage completely." >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p DOWNGRADE_LIMIT >> "$CONFIG_DIR"/appimagedl.conf
+    echo "DOWNGRADE_LIMIT=$DOWNGRADE_LIMIT" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
     echo "# GITHUB_TOKEN - Token used to authenticate with Github's API to increase the rate limit." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# This field can be left blank if you are not having issues hitting the rate limit." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# If you insert your token, it must be valid and should have access to NO scopes." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# Your token will be stored in plain text, so it is advised to use throw-away account for this." >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p GITHUB_TOKEN >> "$CONFIG_DIR"/appimagedl.conf
+    echo "GITHUB_TOKEN="\"$GITHUB_TOKEN\""" >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
     echo "# CLR_* - Colors used in appimagedl's CLI output." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# You can change these to any color that your terminal supports using either tput or by using escape codes." >> "$CONFIG_DIR"/appimagedl.conf
     echo "# Inserting invalid color codes will more than likely cause errors, so be careful." >> "$CONFIG_DIR"/appimagedl.conf
     echo "#" >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p CLR_BLUE >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p CLR_LGREEN >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p CLR_GREEN >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p CLR_LCYAN >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p CLR_CYAN >> "$CONFIG_DIR"/appimagedl.conf
-    declare -p CLR_RED >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_BLUE="\"${CLR_BLUE}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_LGREEN="\"${CLR_LGREEN}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_GREEN="\"${CLR_GREEN}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_LCYAN="\"${CLR_LCYAN}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_CYAN="\"${CLR_CYAN}\""" >> "$CONFIG_DIR"/appimagedl.conf
+    echo "CLR_RED="\"${CLR_RED}\""" >> "$CONFIG_DIR"/appimagedl.conf
 }
 
 # Function that checks github rate limit by using wget on https://api.github.com/rate_limit
