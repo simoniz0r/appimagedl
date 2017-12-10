@@ -22,7 +22,7 @@ _appimagedlzsh() {
  
     case $state in
     args)
-        _arguments '1:arguments:(list info search download get remove revert freeze config man help --verbose --debug)'
+        _arguments '1:arguments:(list info search download get remove update revert freeze config man help --verbose --debug)'
         ;;
     *)
         case $words[2] in
@@ -50,7 +50,7 @@ _appimagedlbash() {
     #
     #  The basic options we'll complete.
     #
-    opts="list info download get remove revert freeze config man help --verbose --debug"
+    opts="list info download get remove update revert freeze config man help --verbose --debug"
 
 
     #
