@@ -745,13 +745,12 @@ Arguments:
     revert|rev  - revert an updated AppImage to its previous version if available
     freeze|fr   - mark or unmark an AppImage as FROZEN to preven update checks
     config|cf   - open appimagedl's config file with $EDITOR
-    *man|m      - show appimagedl man page
+    man|m       - show appimagedl man page
 Additional Aguments:
     [list|info] --downloaded|-d   - show list or info for downloaded AppImages
     --verbose [option] [AppImage] - add bash option 'set -v' for verbose output
     --debug [option] [AppImage]   - add bash option 'set -x' for debugging
 
-* = NOT YET IMPLEMENTED
 See https://github.com/simoniz0r/appimagedl for more help or to report issues.
 appimagedl is not responsible for bugs within AppImages that have been
 downloaded using appimagedl.  Please report any bugs that are specific to
@@ -946,7 +945,15 @@ case $ARG in
         cleanup "0"
         ;;
     man|m)
-        echo "todo man page"
+        BASE_DIR="$(dirname "$RUNNING_DIR")"
+        if [ -f "$BASE_DIR/share/appimagedl/appimagedl.1" ]; then
+            man "$BASE_DIR"/share/appimagedl/appimagedl.1
+        elif [ -f "$RUNNING_DIR/appimagedl.1" ]; then
+            man "$RUNNING_DIR"/appimagedl.1
+        else
+            displaymessage "${CLR_RED}Error${CLR_CLEAR}" "Could not find appimagedl.1 !"
+            cleanup "1"
+        fi
         cleanup "0"
         ;;
     *)
