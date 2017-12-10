@@ -228,6 +228,11 @@ function showinfodownloaded() {
     echo "${CLR_GREEN}$(dir -C -w 1 "$CONFIG_DIR"/downloaded | wc -l) downloaded AppImage(s)${CLR_CLEAR}"
 }
 
+# Function to search for known AppImages in $CONFIG_DIR/list
+function listsearch() {
+    displaymessage "${CLR_GREEN}Search results for $@ :${CLR_CLEAR}" "$(dir -C -w 1 "$CONFIG_DIR"/list | sed 's%.json%%g' | grep "$@" || echo "No results for $@")"
+}
+
 # Function that uses wget and jq to get the latest release info for AppImage
 # If user has stored their GITHUB_TOKEN in CONFIG_DIR/appimagedl.conf, it is used to extend rate limit to 5000/hour
 # The .AppImage or .appimage extension is used in 2 of the 4 checks to make sure we only download AppImages
@@ -738,6 +743,7 @@ release information using Github's API.
 Arguments:
     list|l      - list all available AppImages
     info|i      - output json file containing information for an AppImage
+    search|se   - search for available AppImages
     download|dl - download an AppImage to $TARGET_DIR
     get         - download an AppImage to $GET_DIR without managing it
     remove|rm   - remove a downloaded AppImage
@@ -795,6 +801,28 @@ case $1 in
         shift
         ;;
 esac
+
+# Add tab completion function sourcing to .bashrc and .zshrc if appimagedl is installed or has an alias created for it
+if type appimagedl >/dev/null 2>&1 && [ -f ~/.zshrc ] && ! grep -q 'appimagedl-completion.sh' ~/.zshrc; then
+    wget --quiet "https://raw.githubusercontent.com/simoniz0r/appimagedl/master/appimagedl-completion.sh" -O "$CONFIG_DIR"/appimagedl-completion.sh
+    echo "" >> ~/.zshrc
+    echo "if [ -f "$CONFIG_DIR"/appimagedl-completion.sh ]; then" >> ~/.zshrc
+    echo "    source "$CONFIG_DIR"/appimagedl-completion.sh" >> ~/.zshrc
+    echo "    compdef _appimagedlzsh appimagedl" >> ~/.zshrc
+    echo "fi" >> ~/.zshrc
+    echo "" >> ~/.zshrc
+fi
+if type appimagedl >/dev/null 2>&1 && [ -f ~/.bashrc ] && ! grep -q 'appimagedl-completion.sh' ~/.bashrc; then
+    if [ ! -f "CONFIG_DIR/appimagedl-completion.sh" ]; then
+        wget --quiet "https://raw.githubusercontent.com/simoniz0r/appimagedl/master/appimagedl-completion.sh" -O "$CONFIG_DIR"/appimagedl-completion.sh
+    fi
+    echo "" >> ~/.bashrc
+    echo "if [ -f "$CONFIG_DIR"/appimagedl-completion.sh ]; then" >> ~/.bashrc
+    echo "    source "$CONFIG_DIR"/appimagedl-completion.sh" >> ~/.bashrc
+    echo "    complete -F _appimagedlbash appimagedl" >> ~/.bashrc
+    echo "fi" >> ~/.bashrc
+    echo "" >> ~/.bashrc
+fi
 
 # Create a lock file in CONFIG_DIR/cache if it does not exist on run to prevent multiple instances
 # If lock file does exist, user is prompted to make sure appimagedl is not running
@@ -885,6 +913,14 @@ case $ARG in
                 cleanup "0"
                 ;;
         esac
+        ;;
+    search|se)
+        if [ -z "$APPIMAGE_INPUT" ]; then
+            displaymessage "${CLR_RED}Input Error${CLR_CLEAR}" "AppImage input required; exiting..."
+            cleanup "1"
+        fi
+        listsearch "$APPIMAGE_INPUT"
+        cleanup "0"
         ;;
     download|dl)
         if [ -z "$APPIMAGE_INPUT" ]; then
