@@ -34,7 +34,7 @@ downloaded AppImages to their maintainers.
     
     man|m       - show appimagedl man page
     
-## Additional Aguments
+## Additional Arguments
 
     [list|info] --downloaded|-d   - show list or info for downloaded AppImages
 

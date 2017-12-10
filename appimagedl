@@ -752,7 +752,7 @@ Arguments:
     freeze|fr   - mark or unmark an AppImage as FROZEN to preven update checks
     config|cf   - open appimagedl's config file with $EDITOR
     man|m       - show appimagedl man page
-Additional Aguments:
+Additional Arguments:
     [list|info] --downloaded|-d   - show list or info for downloaded AppImages
     --verbose [option] [AppImage] - add bash option 'set -v' for verbose output
     --debug [option] [AppImage]   - add bash option 'set -x' for debugging
