@@ -732,7 +732,7 @@ function appimagedlconfig() {
 }
 
 function appimagedlhelp() {
-printf '%s\n' "appimagedl 0.0.3
+printf '%s\n' "appimagedl 0.0.4
 Usage: appimagedl [option] [AppImage]
 appimagedl is a command line AppImage manager that integrates with AppImageHub.
 appimagedl uses https://appimage.github.io/feed.json to get information about
