@@ -464,6 +464,7 @@ function updatelist() {
     echo -ne "[ $(tput setab 7)                                          $(tput sgr0) ]\r"
     sleep 0.5
     printf '\e[?25h' # Show cursor
+    cp "$RUNNING_DIR"/.appimagedl.json "$CONFIG_DIR"/list/appimagedl.json || true
     NEW_APPIMAGES_AVAILABLE="$(dir -C -w 1 "$CONFIG_DIR"/list)"
     if [ "$NEW_APPIMAGES_AVAILABLE" != "$APPIMAGES_AVAILABLE" ]; then
         echo -ne "${CLR_CYAN}AppImage list updated. AppImage list changes: ${CLR_CLEAR}\r"

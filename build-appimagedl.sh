@@ -62,6 +62,7 @@ cp ~/github/appimagedl/appimagedl "$BUILD_DIR"/appimagedl.AppDir/usr/bin/
 cp ~/github/appimagedl/appimagedl.1 "$BUILD_DIR"/appimagedl.AppDir/usr/share/appimagedl
 cp ~/github/appimagedl/LICENSE "$BUILD_DIR"/appimagedl.AppDir/usr/share/appimagedl
 cp ~/github/appimagedl/jq "$BUILD_DIR"/appimagedl.AppDir/usr/bin/
+cp ~/github/appimagedl/appimagedl.json "$BUILD_DIR"/appimagedl.AppDir/usr/bin/.appimagedl.json
 cp /usr/local/bin/appimageupdatetool "$BUILD_DIR"/appimagedl.AppDir/usr/bin/
 cp ~/github/appimagedl/appimagedl.desktop "$BUILD_DIR"/appimagedl.AppDir/
 cp ~/github/appimagedl/appimagedl.png "$BUILD_DIR"/appimagedl.AppDir/

@@ -1,0 +1,24 @@
+{
+    "name": "appimagedl",
+    "description": "Easily download AppImages and keep them up to date. Integrates with AppImageHub to get information about available AppImages. ",
+    "categories": [
+      "Utility"
+    ],
+    "authors": [
+      {
+        "name": "simoniz0r",
+        "url": "https://github.com/simoniz0r"
+      }
+    ],
+    "license": "MIT",
+    "links": [
+      {
+        "type": "GitHub",
+        "url": "simoniz0r/appimagedl"
+      },
+      {
+        "type": "Install",
+        "url": "https://github.com/simoniz0r/appimagedl/releases"
+      }
+    ]
+}
