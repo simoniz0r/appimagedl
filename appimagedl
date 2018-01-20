@@ -445,7 +445,10 @@ function updatelist() {
     echo -ne "[ $(tput setab 7)   $(tput sgr0)                                        ]\r"
     for file in $(dir -C -w 1 "$CONFIG_DIR"/list); do
         case $(jq -r '.links[0]' "$CONFIG_DIR"/list/"$file") in
-            null)
+            *GitHub*)
+                sleep 0
+                ;;
+            *)
                 rm -f "$CONFIG_DIR"/list/"$file"
                 ;;
         esac
@@ -734,7 +737,7 @@ function appimagedlconfig() {
 }
 
 function appimagedlhelp() {
-printf '%s\n' "appimagedl 0.0.4
+printf '%s\n' "appimagedl 0.0.5
 Usage: appimagedl [option] [AppImage]
 appimagedl is a command line AppImage manager that integrates with AppImageHub.
 appimagedl uses https://appimage.github.io/feed.json to get information about
