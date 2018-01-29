@@ -463,6 +463,7 @@ function updatelist() {
     for file in $(dir -C -w 1 "$CONFIG_DIR"/list); do
         APPIMAGE_NAME="$(jq -r '.name' "$CONFIG_DIR"/list/"$file")"
         echo -e "$(sed "s%    \"*..*/screenshot.png\"%    \"https://raw.githubusercontent.com/AppImage/appimage.github.io/master/database/$APPIMAGE_NAME/screenshot.png\"%g" "$CONFIG_DIR"/list/"$file")" > "$CONFIG_DIR"/list/"$file"
+        echo -e "$(cat "$CONFIG_DIR"/list/"$file" | tr '\n' "#" | sed 's%<p>*..*<\/p>%%g' | tr '#' '\n')" > "$CONFIG_DIR"/list/"$file"
     done
     echo -ne "[ $(tput setab 7)                                          $(tput sgr0) ]\r"
     sleep 0.5
